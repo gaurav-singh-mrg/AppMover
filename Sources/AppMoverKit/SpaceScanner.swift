@@ -3,7 +3,7 @@ import Foundation
 public struct FolderSize: Identifiable, Equatable, Sendable {
     public let url: URL
     public let bytes: Int64
-    public let isMoved: Bool          // already a symlink managed by us
+    public let isSymlink: Bool        // already redirected, by us or by hand
     public var id: String { url.path }
     public var name: String { url.lastPathComponent }
     public var parentName: String { url.deletingLastPathComponent().lastPathComponent }
@@ -50,7 +50,7 @@ public struct SpaceScanner: Sendable {
         let output = duKilobytes(paths: dirs.map(\.path))
         return dirs.compactMap { url in
             guard let kb = output[url.path] else { return nil }
-            return FolderSize(url: url, bytes: kb * 1024, isMoved: symlinks.contains(url.path))
+            return FolderSize(url: url, bytes: kb * 1024, isSymlink: symlinks.contains(url.path))
         }
     }
 

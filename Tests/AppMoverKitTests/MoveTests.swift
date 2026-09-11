@@ -161,3 +161,71 @@ func getXattr(_ name: String, on url: URL) -> String? {
         return String(decoding: buffer, as: UTF8.self)
     }
 }
+
+@Suite("Destination integrity")
+struct DestinationTests {
+    @Test("refuses a destination that is itself a symlink, which would verify the wrong tree")
+    func refusesSymlinkDestination() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let source = try box.makeFolder("Real")
+        let decoy = try box.makeFolder("Decoy")          // different contents, same shape
+        try "extra".write(to: decoy.appending(path: "extra.txt"),
+                          atomically: true, encoding: .utf8)
+
+        let (volume, subpath) = try box.destination("Trap")
+        let trap = volume.mountPoint.appending(path: subpath)
+        try FileManager.default.createDirectory(
+            at: trap.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: trap, withDestinationURL: decoy)
+
+        #expect(throws: EngineError.self) {
+            _ = try Engine(allowlist: box.allowlist).move(
+                source: source, toVolume: volume, subpath: subpath)
+        }
+        // the source must be untouched, and the decoy must not have been clobbered
+        #expect(try Manifest.scan(source).entryCount == 5)
+        #expect(try Manifest.scan(decoy).entryCount == 6)
+    }
+}
+
+extension DestinationTests {
+    @Test("refuses a dangling symlink at the destination, which fileExists reports as absent")
+    func refusesDanglingSymlinkDestination() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let source = try box.makeFolder("Src")
+        let (volume, subpath) = try box.destination("Dangler")
+        let trap = volume.mountPoint.appending(path: subpath)
+        try FileManager.default.createDirectory(
+            at: trap.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(
+            at: trap, withDestinationURL: box.home.appending(path: "gone"))
+
+        #expect(throws: EngineError.self) {
+            _ = try Engine(allowlist: box.allowlist).move(
+                source: source, toVolume: volume, subpath: subpath)
+        }
+        #expect(try Manifest.scan(source).entryCount == 5)
+    }
+}
+
+extension DestinationTests {
+    @Test("undo never removes sibling folders moved to the same drive")
+    func undoKeepsSiblings() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let first = try box.makeFolder("First")
+        let second = try box.makeFolder("Second")
+        let engine = Engine(allowlist: box.allowlist)
+
+        let (volume, subA) = try box.destination("shared/First")
+        let (_, subB) = try box.destination("shared/Second")
+        let recordA = try engine.move(source: first, toVolume: volume, subpath: subA)
+        _ = try engine.move(source: second, toVolume: volume, subpath: subB)
+
+        try engine.undo(recordA)
+
+        // Second is still moved out, and its data is still on the drive
+        let secondTarget = volume.mountPoint.appending(path: subB)
+        #expect(FileManager.default.fileExists(atPath: secondTarget.path))
+        #expect(try Manifest.scan(second).entryCount == 5)
+    }
+}

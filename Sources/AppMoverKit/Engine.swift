@@ -35,7 +35,10 @@ public struct Engine: Sendable {
         guard !isSymlink(source) else { throw EngineError.alreadyLinked(source) }
         guard isDirectory(source) else { throw EngineError.notADirectory(source) }
         try allowlist.check(source)
-        guard !fm.fileExists(atPath: destination.path) else {
+        // fileExists follows symlinks, so a link to a real directory already trips this.
+        // The explicit isSymlink check also catches a *dangling* link, which fileExists
+        // reports as absent, and fails it with a clear message rather than a ditto error.
+        guard !fm.fileExists(atPath: destination.path), !isSymlink(destination) else {
             throw EngineError.destinationExists(destination)
         }
         guard !fm.fileExists(atPath: backup.path) else { throw EngineError.staleBackup(backup) }
@@ -125,11 +128,21 @@ public struct Engine: Sendable {
         }
 
         progress(.linking)
-        try fm.removeItem(at: source)        // the LINK only; never recursive into the target
-        try fm.moveItem(at: restore, to: source)
+        // moveItem will not overwrite, so the link must go first. For the moment between
+        // these two calls the path does not exist; if the process dies here the data is
+        // intact at `restore`, which is what the error names.
+        do {
+            try fm.removeItem(at: source)    // the LINK only; never recursive into the target
+            try fm.moveItem(at: restore, to: source)
+        } catch {
+            throw EngineError.copyFailed(
+                "\(error.localizedDescription) Your data is safe at \(restore.path) -- "
+                + "rename it back to \(source.lastPathComponent).")
+        }
 
         progress(.cleaningUp)
         nuke(target)                         // external copy goes last
+        removeIfEmpty(target.deletingLastPathComponent())
     }
 
     // MARK: - Primitives
@@ -161,6 +174,17 @@ public struct Engine: Sendable {
     private func nuke(_ url: URL) {
         _ = try? run("/bin/chmod", ["-N", "-R", url.path])
         try? FileManager.default.removeItem(at: url)
+    }
+
+    /// Tidies away an empty AppMover/<root>/ shell.
+    ///
+    /// Must check emptiness first: removeItem is recursive, so an unconditional call here
+    /// would delete every *other* folder moved to the same drive.
+    private func removeIfEmpty(_ url: URL) {
+        let fm = FileManager.default
+        let contents = try? fm.contentsOfDirectory(atPath: url.path)
+        guard let contents, contents.filter({ $0 != ".DS_Store" }).isEmpty else { return }
+        try? fm.removeItem(at: url)
     }
 
     @discardableResult

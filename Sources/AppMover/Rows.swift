@@ -91,3 +91,27 @@ extension LinkHealth {
         }
     }
 }
+
+/// A symlink AppMover did not create. Shown so it is visible, but not offered for undo:
+/// there is no record of where it came from, so restoring it is the user's call.
+struct UnmanagedRow: View {
+    let folder: FolderSize
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "link").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(folder.name)
+                Text(target).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 12)
+            Text("Linked by hand").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private var target: String {
+        (try? FileManager.default.destinationOfSymbolicLink(atPath: folder.url.path))
+            ?? "points nowhere"
+    }
+}

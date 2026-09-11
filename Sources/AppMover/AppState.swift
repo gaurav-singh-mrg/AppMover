@@ -27,7 +27,15 @@ final class AppState {
     }
 
     var movable: [FolderSize] {
-        folders.filter { !$0.isMoved && $0.bytes > 0 }
+        folders.filter { !$0.isSymlink && $0.bytes > 0 }
+    }
+
+    /// Symlinks we did not create -- typically ones the user made by hand.
+    /// Without this they would vanish: hidden from the list for being links, and absent
+    /// from the moved section for having no ledger entry.
+    var unmanagedLinks: [FolderSize] {
+        let known = Set(ledger.links.map(\.source))
+        return folders.filter { $0.isSymlink && !known.contains($0.url.path) }
     }
 
     var reclaimedBytes: Int64 {

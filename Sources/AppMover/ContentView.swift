@@ -22,6 +22,13 @@ struct ContentView: View {
                             }
                         }
                     }
+                    if !state.unmanagedLinks.isEmpty {
+                        Section("Already linked elsewhere") {
+                            ForEach(state.unmanagedLinks) { folder in
+                                UnmanagedRow(folder: folder)
+                            }
+                        }
+                    }
                     Section("On your startup disk") {
                         if state.isScanning && state.folders.isEmpty {
                             HStack { ProgressView().controlSize(.small); Text("Scanning…") }
