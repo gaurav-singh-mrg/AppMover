@@ -68,13 +68,42 @@ struct FolderDetailRow: View {
     let folder: FolderSize
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.caption).foregroundStyle(tint).frame(width: 14)
-            Text(folder.category.rawValue).font(.callout)
-            Text(status).font(.caption).foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon).font(.caption).foregroundStyle(tint)
+                .frame(width: 14).padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(folder.category.rawValue).font(.callout)
+                    Text(status).font(.caption).foregroundStyle(.secondary)
+                }
+                // Where the data actually is right now -- the external path once moved.
+                Text(displayPath)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(locationExists ? .secondary : Color.orange)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(folder.currentLocation.path)
+            }
+
             Spacer(minLength: 8)
+
             Text(folder.bytes.asStorage)
                 .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([folder.currentLocation])
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .disabled(!locationExists)
+            .help(locationExists
+                  ? "Reveal in Finder"
+                  : "Not available — connect the drive to see this folder")
+
             if let record = state.record(for: folder) {
                 Button("Undo") { Task { await state.undo(record) } }
                     .controlSize(.small)
@@ -82,10 +111,19 @@ struct FolderDetailRow: View {
             }
         }
         .padding(.leading, 26)
-        .padding(.vertical, 1)
+        .padding(.vertical, 2)
     }
 
     private var record: MoveRecord? { state.record(for: folder) }
+
+    /// Home paths read better as ~/Library/… than as /Users/name/Library/…
+    private var displayPath: String {
+        (folder.currentLocation.path as NSString).abbreviatingWithTildeInPath
+    }
+
+    private var locationExists: Bool {
+        FileManager.default.fileExists(atPath: folder.currentLocation.path)
+    }
 
     private var icon: String {
         guard folder.isSymlink else { return "internaldrive" }

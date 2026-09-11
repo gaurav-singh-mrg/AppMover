@@ -9,8 +9,9 @@ swift test              # 45 tests
 ```
 
 One row per app, showing everything of its that is on disk — Application Support, Caches and
-Developer data together — expandable to the individual folders. Settings chooses the drive,
-the folder on it, and which categories to show.
+Developer data together — expandable to the individual folders, each showing where its data
+currently lives with a button to reveal it in Finder. Settings chooses the drive, the folder
+on it, and which categories to show.
 
 ## Destination layout
 

@@ -11,6 +11,19 @@ public struct FolderSize: Identifiable, Equatable, Sendable {
     public var name: String { url.lastPathComponent }
     public var parentName: String { url.deletingLastPathComponent().lastPathComponent }
 
+    /// Where the data actually lives right now: the external target once moved, otherwise
+    /// the folder itself. Reported even when the drive is absent, so the user can still see
+    /// where their data went.
+    public var currentLocation: URL {
+        guard isSymlink,
+              let target = try? FileManager.default.destinationOfSymbolicLink(atPath: url.path)
+        else { return url }
+        return URL(filePath: target)
+    }
+
+    /// True when the data is somewhere other than where the app looks for it.
+    public var isRelocated: Bool { currentLocation.path != url.path }
+
     /// Where this lands on the destination drive: <folder>/<category>/<name>.
     public func destinationSubpath(root: String) -> String {
         "\(root)/\(category.destinationFolder)/\(name)"

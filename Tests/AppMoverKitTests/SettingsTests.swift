@@ -98,3 +98,48 @@ struct AllowlistSettingsTests {
         #expect(!list.isAllowed(home.appending(path: "Library/Caches/Code/Deep/Nested")))
     }
 }
+
+@Suite("Current location")
+struct CurrentLocationTests {
+    @Test("an unmoved folder reports its own path")
+    func unmoved() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let dir = try box.makeFolder("Here")
+        let folder = FolderSize(url: dir, bytes: 1, category: .applicationSupport,
+                                isSymlink: false, needsAdmin: false)
+
+        #expect(folder.currentLocation == dir)
+        #expect(!folder.isRelocated)
+    }
+
+    @Test("a moved folder reports where the data actually is")
+    func moved() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let source = try box.makeFolder("Moved")
+        let (volume, subpath) = try box.destination("Moved")
+        let record = try Engine(allowlist: box.allowlist).move(
+            source: source, toVolume: volume, subpath: subpath)
+
+        let folder = FolderSize(url: source, bytes: 1, category: .applicationSupport,
+                                isSymlink: true, needsAdmin: false)
+
+        #expect(folder.currentLocation.path == record.currentTarget()?.path)
+        #expect(folder.isRelocated)
+    }
+
+    @Test("still reports the target when the drive is missing, so the data can be found")
+    func targetMissing() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let source = try box.makeFolder("Gone")
+        let (volume, subpath) = try box.destination("Gone")
+        let record = try Engine(allowlist: box.allowlist).move(
+            source: source, toVolume: volume, subpath: subpath)
+        try FileManager.default.removeItem(at: #require(record.currentTarget()))
+
+        let folder = FolderSize(url: source, bytes: 1, category: .applicationSupport,
+                                isSymlink: true, needsAdmin: false)
+
+        #expect(folder.isRelocated)
+        #expect(folder.currentLocation.lastPathComponent == "Gone")
+    }
+}
