@@ -75,3 +75,73 @@ struct LedgerTests {
         #expect(Ledger().adding(record).health(of: record) == .healthy)
     }
 }
+
+@Suite("Grouping")
+struct AppGroupTests {
+    func folder(_ name: String, _ category: FolderCategory, bytes: Int64) -> FolderSize {
+        FolderSize(url: category.sourceRoot().appending(path: name), bytes: bytes,
+                   category: category, isSymlink: false, needsAdmin: false)
+    }
+
+    @Test("puts an app's Application Support and Caches in one row")
+    func groupsByName() {
+        let groups = AppGroup.group([
+            folder("Google", .applicationSupport, bytes: 2_000),
+            folder("Google", .caches, bytes: 1_000),
+        ], using: NameIdentityResolver())
+
+        #expect(groups.count == 1)
+        #expect(groups[0].totalBytes == 3_000)
+        #expect(groups[0].categorySummary == "Application Support · Caches")
+    }
+
+    @Test("every folder lands in exactly one row and sizes sum exactly")
+    func losesNothing() {
+        let input = [
+            folder("Google", .applicationSupport, bytes: 2_000),
+            folder("Google", .caches, bytes: 1_000),
+            folder("Code", .applicationSupport, bytes: 4_000),
+            folder("ms-playwright", .caches, bytes: 2_500),
+            folder("Xcode", .developer, bytes: 15_000),
+        ]
+
+        let groups = AppGroup.group(input, using: NameIdentityResolver())
+
+        let regrouped = groups.flatMap(\.folders)
+        #expect(regrouped.count == input.count)
+        #expect(Set(regrouped.map(\.id)) == Set(input.map(\.id)))
+        #expect(groups.reduce(0) { $0 + $1.totalBytes } == input.reduce(0) { $0 + $1.bytes })
+    }
+
+    @Test("unidentifiable folders keep their own row instead of sharing a bucket")
+    func doesNotCollapseUnknowns() {
+        let groups = AppGroup.group([
+            folder("weird-thing-1", .caches, bytes: 10),
+            folder("weird-thing-2", .caches, bytes: 20),
+        ], using: NameIdentityResolver())
+
+        #expect(groups.count == 2)
+    }
+
+    @Test("rows are ordered by total size, largest first")
+    func sortsBySize() {
+        let groups = AppGroup.group([
+            folder("Small", .caches, bytes: 10),
+            folder("Big", .applicationSupport, bytes: 900),
+        ], using: NameIdentityResolver())
+
+        #expect(groups.map(\.displayName) == ["Big", "Small"])
+    }
+
+    @Test("a row with some folders moved reports as partially moved")
+    func partialState() {
+        let moved = FolderSize(url: FolderCategory.caches.sourceRoot().appending(path: "Google"),
+                               bytes: 1_000, category: .caches, isSymlink: true, needsAdmin: false)
+        let groups = AppGroup.group(
+            [folder("Google", .applicationSupport, bytes: 2_000), moved],
+            using: NameIdentityResolver())
+
+        #expect(groups[0].isPartiallyMoved)
+        #expect(groups[0].movableFolders.count == 1)
+    }
+}

@@ -5,7 +5,21 @@ behind so apps still find their data. Undo puts everything back.
 
 ```
 ./build-app.sh          # builds AppMover.app
-swift test              # 29 tests
+swift test              # 45 tests
+```
+
+One row per app, showing everything of its that is on disk — Application Support, Caches and
+Developer data together — expandable to the individual folders. Settings chooses the drive,
+the folder on it, and which categories to show.
+
+## Destination layout
+
+Per category, mirroring `~/Library`:
+
+```
+<drive>/AppMover/Application Support/<name>
+<drive>/AppMover/Caches/<name>
+<drive>/AppMover/Developer/<name>
 ```
 
 ## Safety model
@@ -39,7 +53,18 @@ Any failure restores the original and removes the partial copy. Verified on real
 - **A disconnected drive fails loudly, not silently.** Reads and writes through a dangling
   symlink error out; nothing materialises on the internal disk, so data never diverges.
 - **Time Machine does not follow symlinks.** Moved folders drop out of backups. The app
-  warns before each move.
+  warns before each move, naming the folders it is about to move.
+- **Settings can narrow what is movable, never widen it.** Categories are a fixed enum, not a
+  folder picker; the blocklist and the direct-child-only rule sit outside anything settings
+  can reach. A free-form picker would let `~` make `~/Library` a direct child.
+- **Drive speed is measured with `F_FULLFSYNC` and incompressible data.** Without the fsync
+  you time the write cache; with a block of zeros APFS compresses it away. Both bugs were
+  live here — zeros reported a USB SSD at 512 MB/s in 0.06s.
+- **Moving a row is per-folder, not a transaction.** Each folder is recorded as it succeeds,
+  so "Application Support moved, Caches not" is a legitimate, recoverable state.
+- **Application bundles are opt-in.** Disconnecting the drive makes an app *vanish* rather
+  than fail on data access. Apps needing an administrator are flagged, never silently
+  escalated; SIP-protected Apple apps are refused.
 
 ## Not built, on purpose
 

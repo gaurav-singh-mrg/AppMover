@@ -59,3 +59,22 @@ struct RealDataTests {
             .trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
+
+@Suite("RealSpeed", .enabled(if: ProcessInfo.processInfo.environment["APPMOVER_REAL_VOLUME"] != nil))
+struct RealSpeedTests {
+    @Test("measures a real volume's sustained write speed")
+    func measuresVolume() throws {
+        let mount = URL(filePath:
+            try #require(ProcessInfo.processInfo.environment["APPMOVER_REAL_VOLUME"]))
+        let volume = try #require(Volume(mountPoint: mount))
+
+        let speed = try DriveSpeedTester().measure(volume)
+
+        print("MEASURED \(volume.name): \(speed.summary) — slow: \(speed.isSlow)")
+        #expect(speed.megabytesPerSecond > 0)
+        #expect(speed.megabytesPerSecond < 20_000)   // sanity: not measuring RAM
+        // probe file must not be left behind
+        #expect(!FileManager.default.fileExists(
+            atPath: mount.appending(path: ".appmover-speedtest").path))
+    }
+}

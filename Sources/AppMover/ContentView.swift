@@ -3,44 +3,27 @@ import AppMoverKit
 
 struct ContentView: View {
     @Environment(AppState.self) private var state
-    @State private var pendingMove: FolderSize?
+    @State private var pendingMove: AppGroup?
+    @State private var showingSettings = false
 
     var body: some View {
-        @Bindable var state = state
         VStack(spacing: 0) {
-            DestinationBar()
+            DestinationBar(showingSettings: $showingSettings)
             Divider()
 
             if state.readFailed {
                 FullDiskAccessNotice()
             } else {
                 List {
-                    if !state.ledger.links.isEmpty {
-                        Section("Moved to \(state.destination?.name ?? "external storage")") {
-                            ForEach(state.ledger.links) { record in
-                                MovedRow(record: record)
-                            }
-                        }
+                    if state.isScanning && state.groups.isEmpty {
+                        HStack { ProgressView().controlSize(.small); Text("Scanning…") }
                     }
-                    if !state.unmanagedLinks.isEmpty {
-                        Section("Already linked elsewhere") {
-                            ForEach(state.unmanagedLinks) { folder in
-                                UnmanagedRow(folder: folder)
-                            }
-                        }
-                    }
-                    Section("On your startup disk") {
-                        if state.isScanning && state.folders.isEmpty {
-                            HStack { ProgressView().controlSize(.small); Text("Scanning…") }
-                        }
-                        ForEach(state.movable) { folder in
-                            FolderRow(folder: folder, largest: state.movable.first?.bytes ?? 1) {
-                                pendingMove = folder
-                            }
-                        }
+                    ForEach(state.groups) { group in
+                        AppRow(group: group) { pendingMove = group }
                     }
                 }
                 .listStyle(.inset)
+                .alternatingRowBackgrounds()
             }
 
             if let busy = state.busyMessage {
@@ -53,28 +36,22 @@ struct ContentView: View {
                 .padding(10)
             }
         }
-        .frame(minWidth: 620, minHeight: 460)
+        .frame(minWidth: 680, minHeight: 480)
         .task { await state.refresh() }
+        .sheet(isPresented: $showingSettings) { SettingsView() }
         .confirmationDialog(
-            "Move \(pendingMove?.name ?? "")?",
+            "Move \(pendingMove?.displayName ?? "")?",
             isPresented: .constant(pendingMove != nil),
             presenting: pendingMove
-        ) { folder in
-            Button("Move to \(state.destination?.name ?? "drive")") {
-                let target = folder
+        ) { group in
+            Button("Move \(group.movableFolders.count) folder\(group.movableFolders.count == 1 ? "" : "s")") {
+                let target = group
                 pendingMove = nil
                 Task { await state.move(target) }
             }
             Button("Cancel", role: .cancel) { pendingMove = nil }
-        } message: { folder in
-            Text("""
-                \(folder.name) will live on \(state.destination?.name ?? "the external drive"), \
-                with a link left behind so the app still finds it.
-
-                Quit the app that uses it first. While the drive is disconnected that app \
-                cannot reach its data. Time Machine does not follow links, so this folder \
-                will drop out of your backups.
-                """)
+        } message: { group in
+            Text(confirmation(for: group))
         }
         .alert("Couldn't finish", isPresented: .constant(state.errorMessage != nil)) {
             Button("OK") { state.errorMessage = nil }
@@ -82,28 +59,49 @@ struct ContentView: View {
             Text(state.errorMessage ?? "")
         }
     }
+
+    /// Names the folders being moved, not just the app, so the scope is never a surprise.
+    private func confirmation(for group: AppGroup) -> String {
+        let list = group.movableFolders
+            .map { "• \($0.category.rawValue) — \($0.bytes.asStorage)" }
+            .joined(separator: "\n")
+        var text = """
+            Moving to \(state.destination?.name ?? "the drive"):
+
+            \(list)
+
+            Quit \(group.displayName) first. While the drive is disconnected it cannot reach \
+            this data. Time Machine does not follow links, so these folders will drop out of \
+            your backups.
+            """
+        if group.needsAdmin {
+            text += "\n\nSome of these are not owned by you and will need an administrator."
+        }
+        return text
+    }
 }
 
 struct DestinationBar: View {
     @Environment(AppState.self) private var state
+    @Binding var showingSettings: Bool
 
     var body: some View {
-        @Bindable var state = state
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Image(systemName: "externaldrive.connected.to.line.below")
                 .font(.title2).foregroundStyle(.tint)
 
-            Picker("Move to", selection: $state.destinationUUID) {
-                if state.candidateDestinations.isEmpty {
-                    Text("No external drive connected").tag(String?.none)
-                }
-                ForEach(state.candidateDestinations) { volume in
-                    Text("\(volume.name) — \(volume.availableBytes.asStorage) free")
-                        .tag(String?.some(volume.uuid))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(state.destination?.name ?? "No drive selected")
+                    .fontWeight(.medium)
+                if let volume = state.destination {
+                    Text("\(volume.availableBytes.asStorage) free")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            .labelsHidden()
-            .frame(maxWidth: 300)
+
+            if let speed = state.destinationSpeed, speed.isSlow {
+                SlowDriveBadge(speed: speed)
+            }
 
             Spacer()
 
@@ -111,14 +109,28 @@ struct DestinationBar: View {
                 Text("\(state.reclaimedBytes.asStorage) reclaimed")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            Button {
-                Task { await state.refresh() }
-            } label: {
+            Button { Task { await state.refresh() } } label: {
                 Image(systemName: "arrow.clockwise")
             }
             .disabled(state.isScanning)
+            Button { showingSettings = true } label: {
+                Image(systemName: "gearshape")
+            }
         }
         .padding(12)
+    }
+}
+
+struct SlowDriveBadge: View {
+    let speed: DriveSpeed
+
+    var body: some View {
+        Label(speed.summary, systemImage: "exclamationmark.triangle.fill")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(.orange.opacity(0.12), in: Capsule())
+            .help(speed.warning)
     }
 }
 
@@ -138,7 +150,5 @@ struct FullDiskAccessNotice: View {
 }
 
 extension Int64 {
-    var asStorage: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .file)
-    }
+    var asStorage: String { ByteCountFormatter.string(fromByteCount: self, countStyle: .file) }
 }

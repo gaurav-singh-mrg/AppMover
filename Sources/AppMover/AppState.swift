@@ -5,90 +5,110 @@ import AppMoverKit
 @MainActor
 @Observable
 final class AppState {
-    var folders: [FolderSize] = []
+    var settings: Settings = .load()
     var ledger: Ledger = .load()
+    var groups: [AppGroup] = []
     var volumes: [Volume] = []
-    var destinationUUID: String?
+    var speeds: DriveSpeedCache = .load()
     var isScanning = false
     var busyMessage: String?
     var errorMessage: String?
     var readFailed = false
 
-    private let engine = Engine()
-    private let scanner = SpaceScanner()
+    private var folders: [FolderSize] = []
 
-    var destination: Volume? {
-        volumes.first { $0.uuid == destinationUUID }
-    }
+    var destination: Volume? { volumes.first { $0.uuid == settings.destinationUUID } }
 
-    /// External, writable volumes that can actually hold relocated data.
     var candidateDestinations: [Volume] {
         volumes.filter { $0.supportsSymlinks && !$0.isReadOnly && $0.mountPoint.path != "/" }
     }
 
-    var movable: [FolderSize] {
-        folders.filter { !$0.isSymlink && $0.bytes > 0 }
+    var destinationSpeed: DriveSpeed? {
+        destination.flatMap { speeds.speed(forVolume: $0.uuid) }
     }
 
-    /// Symlinks we did not create -- typically ones the user made by hand.
-    /// Without this they would vanish: hidden from the list for being links, and absent
-    /// from the moved section for having no ledger entry.
-    var unmanagedLinks: [FolderSize] {
-        let known = Set(ledger.links.map(\.source))
-        return folders.filter { $0.isSymlink && !known.contains($0.url.path) }
-    }
+    var movableGroups: [AppGroup] { groups.filter { !$0.movableFolders.isEmpty } }
+    var movedGroups: [AppGroup] { groups.filter { $0.isFullyMoved || $0.isPartiallyMoved } }
 
-    var reclaimedBytes: Int64 {
-        ledger.links.reduce(0) { $0 + $1.sizeBytes }
-    }
+    var reclaimedBytes: Int64 { ledger.links.reduce(0) { $0 + $1.sizeBytes } }
 
     func health(_ record: MoveRecord) -> LinkHealth { ledger.health(of: record) }
+    func record(for folder: FolderSize) -> MoveRecord? { ledger.record(for: folder.url) }
 
-    var hasProblem: Bool {
-        ledger.links.contains { health($0) != .healthy }
+    var hasProblem: Bool { ledger.links.contains { health($0) != .healthy } }
+
+    // MARK: - Loading
+
+    func refresh() async {
+        volumes = Volume.mounted()
+        if destination == nil, let first = candidateDestinations.first {
+            settings = settings.with { $0.destinationUUID = first.uuid }
+            try? settings.save()
+        }
+        ledger = .load()
+        isScanning = true
+        let scanned = await SpaceScanner(settings: settings).scanAll()
+        folders = scanned
+        let resolver = AppIdentityResolver()
+        groups = await Task.detached { AppGroup.group(scanned, using: resolver) }.value
+        isScanning = false
+        readFailed = folders.isEmpty && ledger.links.isEmpty
+        await measureDestinationIfNeeded()
+    }
+
+    /// Benchmarks a drive once and remembers it, rather than on every refresh.
+    func measureDestinationIfNeeded() async {
+        guard let volume = destination, speeds.speed(forVolume: volume.uuid) == nil else { return }
+        guard let speed = try? await Task.detached(priority: .utility, operation: {
+            try DriveSpeedTester().measure(volume)
+        }).value else { return }
+        speeds = speeds.recording(speed, forVolume: volume.uuid)
+        try? speeds.save()
+    }
+
+    func updateSettings(_ change: (inout Settings) -> Void) async {
+        settings = settings.with(change)
+        try? settings.save()
+        await refresh()
     }
 
     // MARK: - Actions
 
-    func refresh() async {
-        volumes = Volume.mounted()
-        if destinationUUID == nil || destination == nil {
-            destinationUUID = candidateDestinations.first?.uuid
-        }
-        ledger = .load()
-        isScanning = true
-        folders = await scanner.scanAll()
-        isScanning = false
-        // Application Support is readable by its owner; a total blank means the read was
-        // refused, which in practice means Full Disk Access has not been granted.
-        readFailed = folders.isEmpty && ledger.links.isEmpty
-    }
-
-    func move(_ folder: FolderSize) async {
+    /// Moves every not-yet-moved folder in a row, one at a time.
+    ///
+    /// No group transaction: each folder is recorded as it succeeds, so a row with its
+    /// Application Support moved and its Caches not is a legitimate, recoverable state.
+    func move(_ group: AppGroup) async {
         guard let volume = destination else {
-            errorMessage = "Choose an external drive first."
+            errorMessage = "Choose a drive in Settings first."
             return
         }
-        let subpath = "AppMover/\(folder.parentName)/\(folder.name)"
-        busyMessage = "Moving \(folder.name)…"
-        defer { busyMessage = nil }
+        let root = settings.destinationFolder
+        let allowlist = Allowlist(settings: settings)
+        var failures: [String] = []
 
-        do {
-            let record = try await run {
-                try Engine().move(source: folder.url, toVolume: volume, subpath: subpath)
+        for folder in group.movableFolders {
+            busyMessage = "Moving \(group.displayName) — \(folder.category.rawValue)…"
+            do {
+                let record = try await run {
+                    try Engine(allowlist: allowlist).move(
+                        source: folder.url, toVolume: volume,
+                        subpath: folder.destinationSubpath(root: root))
+                }
+                ledger = ledger.adding(record)
+                try ledger.save()
+            } catch {
+                failures.append("\(folder.category.rawValue): \(error.localizedDescription)")
             }
-            ledger = ledger.adding(record)
-            try ledger.save()
-            await refresh()
-        } catch {
-            errorMessage = error.localizedDescription
         }
+        busyMessage = nil
+        if !failures.isEmpty { errorMessage = failures.joined(separator: "\n\n") }
+        await refresh()
     }
 
     func undo(_ record: MoveRecord) async {
         busyMessage = "Restoring \(record.displayName)…"
         defer { busyMessage = nil }
-
         do {
             try await run { try Engine().undo(record) }
             ledger = ledger.removing(source: record.source)
@@ -99,8 +119,15 @@ final class AppState {
         }
     }
 
-    /// Keeps the filesystem work off the main actor so the window stays responsive.
-    private func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
-        try await Task.detached(priority: .userInitiated) { try work() }.value
+    func undoAll(_ group: AppGroup) async {
+        for folder in group.folders {
+            guard let record = record(for: folder) else { continue }
+            await undo(record)
+        }
+    }
+
+    /// Keeps filesystem work off the main actor so the window stays responsive.
+    private func run<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) async throws -> T {
+        try await Task.detached(priority: .userInitiated) { try await work() }.value
     }
 }

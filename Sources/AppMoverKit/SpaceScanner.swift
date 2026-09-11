@@ -3,26 +3,44 @@ import Foundation
 public struct FolderSize: Identifiable, Equatable, Sendable {
     public let url: URL
     public let bytes: Int64
+    public let category: FolderCategory
     public let isSymlink: Bool        // already redirected, by us or by hand
+    public let needsAdmin: Bool       // not owned by the current user; moving needs authorisation
+
     public var id: String { url.path }
     public var name: String { url.lastPathComponent }
     public var parentName: String { url.deletingLastPathComponent().lastPathComponent }
+
+    /// Where this lands on the destination drive: <folder>/<category>/<name>.
+    public func destinationSubpath(root: String) -> String {
+        "\(root)/\(category.destinationFolder)/\(name)"
+    }
 }
 
-/// Sizes the direct children of the allowlisted roots.
+/// Sizes the direct children of the active category roots.
 ///
-/// ponytail: shells out to `du -skx`, one process per root, run concurrently. A treemap or a
-/// bundle-id rollup is out of scope -- DaisyDisk already does that better. The only job here
-/// is "help me pick a folder". `-x` keeps it on one device so already-moved folders read as
-/// freed rather than re-counting the external copy.
+/// ponytail: shells out to `du -skx`, one process per root, run concurrently. A treemap is
+/// out of scope -- DaisyDisk does that better. `-x` keeps it on one device so already-moved
+/// folders read as freed rather than re-counting the external copy.
 public struct SpaceScanner: Sendable {
-    private let allowlist: Allowlist
-    public init(allowlist: Allowlist = Allowlist()) { self.allowlist = allowlist }
+    private let categories: [FolderCategory]
+    private let home: URL
+
+    public init(categories: [FolderCategory] = FolderCategory.dataCategories,
+                home: URL = URL(filePath: NSHomeDirectory())) {
+        self.categories = categories
+        self.home = home
+    }
+
+    public init(settings: Settings, home: URL = URL(filePath: NSHomeDirectory())) {
+        self.init(categories: settings.activeCategories, home: home)
+    }
 
     public func scanAll() async -> [FolderSize] {
-        await withTaskGroup(of: [FolderSize].self) { group in
-            for root in allowlist.roots {
-                group.addTask { SpaceScanner.sizes(under: root) }
+        let home = home
+        return await withTaskGroup(of: [FolderSize].self) { group in
+            for category in categories {
+                group.addTask { SpaceScanner.sizes(in: category, home: home) }
             }
             var all: [FolderSize] = []
             for await chunk in group { all += chunk }
@@ -30,8 +48,9 @@ public struct SpaceScanner: Sendable {
         }
     }
 
-    static func sizes(under root: URL) -> [FolderSize] {
+    static func sizes(in category: FolderCategory, home: URL) -> [FolderSize] {
         let fm = FileManager.default
+        let root = category.sourceRoot(home: home)
         guard let children = try? fm.contentsOfDirectory(
             at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
         ), !children.isEmpty else { return [] }
@@ -40,17 +59,21 @@ public struct SpaceScanner: Sendable {
             (try? fm.destinationOfSymbolicLink(atPath: $0.path)) != nil
         }.map(\.path))
 
-        // Directories only; a loose file in Application Support is not worth relocating.
-        let dirs = children.filter { url in
+        let entries = children.filter { url in
+            // Application bundles are directories too, so this keeps both.
             var isDir: ObjCBool = false
             return fm.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
         }
-        guard !dirs.isEmpty else { return [] }
+        guard !entries.isEmpty else { return [] }
 
-        let output = duKilobytes(paths: dirs.map(\.path))
-        return dirs.compactMap { url in
-            guard let kb = output[url.path] else { return nil }
-            return FolderSize(url: url, bytes: kb * 1024, isSymlink: symlinks.contains(url.path))
+        let sizes = duKilobytes(paths: entries.map(\.path))
+        let me = getuid()
+        return entries.compactMap { url in
+            guard let kb = sizes[url.path] else { return nil }
+            var info = stat()
+            let owned = lstat(url.path, &info) == 0 && info.st_uid == me
+            return FolderSize(url: url, bytes: kb * 1024, category: category,
+                              isSymlink: symlinks.contains(url.path), needsAdmin: !owned)
         }
     }
 
@@ -67,7 +90,6 @@ public struct SpaceScanner: Sendable {
 
         var result: [String: Int64] = [:]
         for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-            // "12345\t/path/with possible spaces"
             guard let tab = line.firstIndex(of: "\t") else { continue }
             let kb = Int64(line[line.startIndex..<tab].trimmingCharacters(in: .whitespaces)) ?? 0
             result[String(line[line.index(after: tab)...])] = kb
