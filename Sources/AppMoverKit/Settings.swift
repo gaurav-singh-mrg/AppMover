@@ -6,17 +6,36 @@ public struct Settings: Codable, Equatable, Sendable {
     public var destinationUUID: String?
     public var destinationFolder: String
     public var moveApplicationBundles: Bool
+    public var sortOrder: GroupSort
 
     public init(
         enabledCategories: Set<FolderCategory> = Set(FolderCategory.dataCategories),
         destinationUUID: String? = nil,
         destinationFolder: String = "AppMover",
-        moveApplicationBundles: Bool = false     // opt-in: a different failure mode from data
+        moveApplicationBundles: Bool = false,    // opt-in: a different failure mode from data
+        sortOrder: GroupSort = .size
     ) {
         self.enabledCategories = enabledCategories
         self.destinationUUID = destinationUUID
         self.destinationFolder = destinationFolder
         self.moveApplicationBundles = moveApplicationBundles
+        self.sortOrder = sortOrder
+    }
+
+    /// Decoded field by field with fallbacks rather than relying on synthesised Codable,
+    /// which throws on a missing key. A settings file written by an older build would
+    /// otherwise fail to decode and silently reset every preference, including the drive.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = Settings()
+        enabledCategories = (try? c.decode(Set<FolderCategory>.self, forKey: .enabledCategories))
+            ?? defaults.enabledCategories
+        destinationUUID = try? c.decodeIfPresent(String.self, forKey: .destinationUUID)
+        destinationFolder = (try? c.decode(String.self, forKey: .destinationFolder))
+            ?? defaults.destinationFolder
+        moveApplicationBundles = (try? c.decode(Bool.self, forKey: .moveApplicationBundles))
+            ?? defaults.moveApplicationBundles
+        sortOrder = (try? c.decode(GroupSort.self, forKey: .sortOrder)) ?? defaults.sortOrder
     }
 
     /// Categories actually scanned: application bundles only when explicitly enabled.

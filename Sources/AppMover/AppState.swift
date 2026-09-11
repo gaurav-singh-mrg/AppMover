@@ -14,8 +14,18 @@ final class AppState {
     var busyMessage: String?
     var errorMessage: String?
     var readFailed = false
+    var searchText = ""
 
     private var folders: [FolderSize] = []
+
+    /// What the list actually shows: searched, then sorted.
+    var arrangedGroups: [AppGroup] {
+        GroupList.arrange(groups, sort: settings.sortOrder, search: searchText)
+    }
+
+    var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var destination: Volume? { volumes.first { $0.uuid == settings.destinationUUID } }
 
@@ -64,6 +74,12 @@ final class AppState {
         }).value else { return }
         speeds = speeds.recording(speed, forVolume: volume.uuid)
         try? speeds.save()
+    }
+
+    /// Sorting only reorders what is already loaded, so it persists without rescanning.
+    func setSort(_ order: GroupSort) {
+        settings = settings.with { $0.sortOrder = order }
+        try? settings.save()
     }
 
     func updateSettings(_ change: (inout Settings) -> Void) async {

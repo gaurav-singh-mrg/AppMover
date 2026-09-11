@@ -11,7 +11,8 @@ swift test              # 45 tests
 One row per app, showing everything of its that is on disk — Application Support, Caches and
 Developer data together — expandable to the individual folders, each showing where its data
 currently lives with a button to reveal it in Finder. Settings chooses the drive, the folder
-on it, and which categories to show.
+on it, and which categories to show. The list can be searched and sorted by size, name, or
+location (moved first); the sort persists, the search does not.
 
 ## Destination layout
 
@@ -63,6 +64,13 @@ Any failure restores the original and removes the partial copy. Verified on real
   live here — zeros reported a USB SSD at 512 MB/s in 0.06s.
 - **Moving a row is per-folder, not a transaction.** Each folder is recorded as it succeeds,
   so "Application Support moved, Caches not" is a legitimate, recoverable state.
+- **Search matches inside a row, not just its title.** Typing "microsoft" finds the row
+  named "Visual Studio Code" through its `com.microsoft.VSCode.ShipIt` folder.
+- **Folders that could never be moved are not listed at all.** Offering a Move button that
+  always fails is worse than omitting the folder.
+- **Settings decode field by field with fallbacks.** Synthesised `Codable` throws on a
+  missing key, so adding a preference would make an older settings file fail to load and
+  silently reset every other preference, including the chosen drive.
 - **Application bundles are opt-in.** Disconnecting the drive makes an app *vanish* rather
   than fail on data access. Apps needing an administrator are flagged, never silently
   escalated; SIP-protected Apple apps are refused.

@@ -10,20 +10,26 @@ struct ContentView: View {
         VStack(spacing: 0) {
             DestinationBar(showingSettings: $showingSettings)
             Divider()
+            FilterBar()
+            Divider()
 
             if state.readFailed {
                 FullDiskAccessNotice()
             } else {
-                List {
-                    if state.isScanning && state.groups.isEmpty {
-                        HStack { ProgressView().controlSize(.small); Text("Scanning…") }
+                if state.arrangedGroups.isEmpty && state.isSearching {
+                    ContentUnavailableView.search(text: state.searchText)
+                } else {
+                    List {
+                        if state.isScanning && state.groups.isEmpty {
+                            HStack { ProgressView().controlSize(.small); Text("Scanning…") }
+                        }
+                        ForEach(state.arrangedGroups) { group in
+                            AppRow(group: group) { pendingMove = group }
+                        }
                     }
-                    ForEach(state.groups) { group in
-                        AppRow(group: group) { pendingMove = group }
-                    }
+                    .listStyle(.inset)
+                    .alternatingRowBackgrounds()
                 }
-                .listStyle(.inset)
-                .alternatingRowBackgrounds()
             }
 
             if let busy = state.busyMessage {
@@ -118,6 +124,62 @@ struct DestinationBar: View {
             }
         }
         .padding(12)
+    }
+}
+
+struct FilterBar: View {
+    @Environment(AppState.self) private var state
+    @FocusState private var isSearchFocused: Bool
+
+    var body: some View {
+        @Bindable var state = state
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary).font(.callout)
+                TextField("Search apps and folders", text: $state.searchText)
+                    .textFieldStyle(.plain)
+                    .focused($isSearchFocused)
+                if state.isSearching {
+                    Button { state.searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+            .frame(maxWidth: 320)
+            // A plain TextField only accepts clicks on the glyphs themselves; without this
+            // clicking the padding around it does nothing and the box feels broken.
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .onTapGesture { isSearchFocused = true }
+
+            Spacer()
+
+            Text(countLabel).font(.caption).foregroundStyle(.secondary)
+
+            Picker("Sort", selection: Binding(
+                get: { state.settings.sortOrder },
+                set: { state.setSort($0) }
+            )) {
+                ForEach(GroupSort.allCases) { order in
+                    Text(order.label).tag(order)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 110)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    private var countLabel: String {
+        let shown = state.arrangedGroups.count
+        guard state.isSearching else {
+            return "\(shown) app\(shown == 1 ? "" : "s")"
+        }
+        return "\(shown) of \(state.groups.count)"
     }
 }
 

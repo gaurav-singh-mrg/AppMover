@@ -38,11 +38,13 @@ public struct FolderSize: Identifiable, Equatable, Sendable {
 public struct SpaceScanner: Sendable {
     private let categories: [FolderCategory]
     private let home: URL
+    private let allowlist: Allowlist
 
     public init(categories: [FolderCategory] = FolderCategory.dataCategories,
                 home: URL = URL(filePath: NSHomeDirectory())) {
         self.categories = categories
         self.home = home
+        self.allowlist = Allowlist(home: home, categories: categories)
     }
 
     public init(settings: Settings, home: URL = URL(filePath: NSHomeDirectory())) {
@@ -51,13 +53,18 @@ public struct SpaceScanner: Sendable {
 
     public func scanAll() async -> [FolderSize] {
         let home = home
+        let allowlist = allowlist
         return await withTaskGroup(of: [FolderSize].self) { group in
             for category in categories {
                 group.addTask { SpaceScanner.sizes(in: category, home: home) }
             }
             var all: [FolderSize] = []
             for await chunk in group { all += chunk }
-            return all.sorted { $0.bytes > $1.bytes }
+            // Drop what could never be moved -- our own ledger directory, anything
+            // blocklisted. Offering a Move button that always fails is worse than
+            // not listing the folder at all.
+            return all.filter { allowlist.isAllowed($0.url) }
+                      .sorted { $0.bytes > $1.bytes }
         }
     }
 
