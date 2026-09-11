@@ -116,3 +116,19 @@ struct AllowlistTests {
         #expect(!box.allowlist.isAllowed(sneaky))
     }
 }
+
+@Suite("Manifest through a symlink")
+struct ManifestSymlinkTests {
+    @Test("scanning a symlinked folder sees the same tree as the real one")
+    func followsRootSymlink() throws {
+        let box = try Sandbox(); defer { box.cleanup() }
+        let source = try box.makeFolder("Linked")
+        let before = try Manifest.scan(source)
+        let (volume, subpath) = try box.destination("Linked")
+        _ = try Engine(allowlist: box.allowlist).move(
+            source: source, toVolume: volume, subpath: subpath)
+
+        // `source` is now a symlink; reading it must still describe the real tree.
+        #expect(try Manifest.scan(source) == before)
+    }
+}

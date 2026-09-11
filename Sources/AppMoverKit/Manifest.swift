@@ -15,10 +15,15 @@ public struct Manifest: Equatable, Sendable {
     }
 
     /// Walks `url` without following symlinks; inner symlinks are counted, not traversed.
+    ///
+    /// The ROOT is resolved first: FileManager's enumerator will not descend through a
+    /// symlink handed to it as the root, so scanning a folder we have already moved would
+    /// otherwise report an empty tree and look like catastrophic data loss.
     public static func scan(_ url: URL) throws -> Manifest {
+        let root = url.resolvingSymlinksInPath()
         let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
         guard let walker = FileManager.default.enumerator(
-            at: url,
+            at: root,
             includingPropertiesForKeys: Array(keys),
             options: []   // no skipsHiddenFiles: dotfiles are app state and must be counted
         ) else {

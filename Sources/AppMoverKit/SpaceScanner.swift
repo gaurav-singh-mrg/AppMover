@@ -15,14 +15,14 @@ public struct FolderSize: Identifiable, Equatable, Sendable {
 /// bundle-id rollup is out of scope -- DaisyDisk already does that better. The only job here
 /// is "help me pick a folder". `-x` keeps it on one device so already-moved folders read as
 /// freed rather than re-counting the external copy.
-public struct Scanner: Sendable {
+public struct SpaceScanner: Sendable {
     private let allowlist: Allowlist
     public init(allowlist: Allowlist = Allowlist()) { self.allowlist = allowlist }
 
     public func scanAll() async -> [FolderSize] {
         await withTaskGroup(of: [FolderSize].self) { group in
             for root in allowlist.roots {
-                group.addTask { Scanner.sizes(under: root) }
+                group.addTask { SpaceScanner.sizes(under: root) }
             }
             var all: [FolderSize] = []
             for await chunk in group { all += chunk }
