@@ -35,6 +35,14 @@ public struct Engine: Sendable {
         guard !isSymlink(source) else { throw EngineError.alreadyLinked(source) }
         guard isDirectory(source) else { throw EngineError.notADirectory(source) }
         try allowlist.check(source)
+        // `subpath` is built from a user-editable setting. A ".." component standardizes the
+        // destination off the chosen volume entirely -- "/Volumes/MicroSD" + "../Caches/x"
+        // lands on the boot disk -- so the free-space check, the copy and the abort path's
+        // nuke would every one of them act on the wrong drive.
+        guard !subpath.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else {
+            throw EngineError.blockedPath(
+                reason: "The folder name on the drive cannot contain \"..\" or \".\".")
+        }
         // fileExists follows symlinks, so a link to a real directory already trips this.
         // The explicit isSymlink check also catches a *dangling* link, which fileExists
         // reports as absent, and fails it with a clear message rather than a ditto error.
@@ -111,6 +119,16 @@ public struct Engine: Sendable {
         guard !fm.fileExists(atPath: restore.path) else { throw EngineError.staleBackup(restore) }
 
         let expected = try Manifest.scan(target)
+        // Undo copies back onto the internal disk -- the disk that was full enough for the
+        // user to install this app in the first place. Without the same check the move makes,
+        // ditto runs until it fills the disk, fails partway, and leaves a partial restore
+        // that makes the *next* undo attempt fail too. The parent, not the source itself:
+        // the source is a symlink and resolves to the external volume.
+        guard let internalVolume = Volume.containing(source.deletingLastPathComponent()) else {
+            throw EngineError.volumeUnsuitable(
+                reason: "Could not identify the disk that \(source.lastPathComponent) belongs on.")
+        }
+        try internalVolume.validateAsDestination(source: nil, requiredBytes: expected.logicalBytes)
 
         progress(.copying)
         do {
@@ -142,6 +160,30 @@ public struct Engine: Sendable {
 
         progress(.cleaningUp)
         nuke(target)                         // external copy goes last
+        removeIfEmpty(target.deletingLastPathComponent())
+    }
+
+    // MARK: - Orphan repair
+
+    /// Deletes the abandoned external copy left when something replaced our symlink with a
+    /// real directory -- a Sparkle update, a reinstall, a migration assistant. All of those
+    /// write a new folder aside and rename() it over the old path, which destroys the link.
+    ///
+    /// The live data is the new folder on the internal disk; the external copy is a stale
+    /// duplicate that nothing points at and nothing else will ever clean up. Until this runs,
+    /// the user is using *more* disk than before they installed AppMover.
+    public func discardOrphan(_ record: MoveRecord) throws {
+        // Re-checked here rather than trusted from the UI: health is computed when the window
+        // opens and the window may have been open for hours. If the symlink is in fact live,
+        // the data below is not abandoned, it is the only copy.
+        guard Ledger.health(of: record) == .orphaned else {
+            throw EngineError.notOrphaned(record.sourceURL)
+        }
+        guard let target = record.currentTarget(), isDirectory(target) else {
+            throw EngineError.targetMissing(
+                record.currentTarget() ?? URL(filePath: record.relativePath))
+        }
+        nuke(target)
         removeIfEmpty(target.deletingLastPathComponent())
     }
 

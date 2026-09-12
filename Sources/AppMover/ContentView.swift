@@ -10,6 +10,10 @@ struct ContentView: View {
         VStack(spacing: 0) {
             DestinationBar(showingSettings: $showingSettings)
             Divider()
+            if !state.strandedBackups.isEmpty {
+                StrandedBackupNotice(backups: state.strandedBackups)
+                Divider()
+            }
             FilterBar()
             Divider()
 
@@ -76,9 +80,9 @@ struct ContentView: View {
 
             \(list)
 
-            Quit \(group.displayName) first. While the drive is disconnected it cannot reach \
-            this data. Time Machine does not follow links, so these folders will drop out of \
-            your backups.
+            While the drive is disconnected \(group.displayName) cannot reach this data. \
+            Time Machine does not follow links, so these folders will drop out of your \
+            backups — keep a copy somewhere else if you cannot regenerate them.
             """
         if group.needsAdmin {
             text += "\n\nSome of these are not owned by you and will need an administrator."
@@ -118,7 +122,7 @@ struct DestinationBar: View {
             Button { Task { await state.refresh() } } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .disabled(state.isScanning)
+            .disabled(state.isScanning || state.isBusy)
             Button { showingSettings = true } label: {
                 Image(systemName: "gearshape")
             }
@@ -193,6 +197,32 @@ struct SlowDriveBadge: View {
             .padding(.horizontal, 7).padding(.vertical, 3)
             .background(.orange.opacity(0.12), in: Capsule())
             .help(speed.warning)
+    }
+}
+
+/// An interrupted run left the original renamed aside and no symlink in its place, so the
+/// folder has vanished as far as its app is concerned. The data is intact and one rename
+/// away -- but nothing else in the app ever looks for it.
+struct StrandedBackupNotice: View {
+    let backups: [URL]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("A previous move was interrupted").fontWeight(.medium)
+                Text("\(backups.count) recovered folder\(backups.count == 1 ? " is" : "s are") "
+                     + "waiting. Its app cannot see it until you rename it back, dropping "
+                     + "the \".appmover.bak\" or \".appmover.restore\" suffix.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Button("Show in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting(backups)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.orange.opacity(0.1))
     }
 }
 

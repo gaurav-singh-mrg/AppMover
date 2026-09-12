@@ -40,7 +40,9 @@ public enum FolderCategory: String, Codable, CaseIterable, Sendable, Identifiabl
     public var explanation: String {
         switch self {
         case .applicationSupport: "Saved state, profiles and databases. The usual place to reclaim space."
-        case .caches: "Regenerable data. Already excluded from Time Machine, so the safest to move."
+        case .caches:
+            "Regenerable data, already excluded from Time Machine — the safest to move, but "
+            + "read constantly, so a slow drive will be felt."
         case .developer: "Xcode simulators, archives and device support. Often the largest single win."
         case .applications: "The apps themselves. Disconnecting the drive makes them disappear, not just fail."
         }

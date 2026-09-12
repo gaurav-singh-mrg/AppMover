@@ -75,7 +75,12 @@ public struct Ledger: Codable, Equatable, Sendable {
 
     // MARK: - Health
 
-    public func health(of record: MoveRecord) -> LinkHealth {
+    public func health(of record: MoveRecord) -> LinkHealth { Ledger.health(of: record) }
+
+    /// Health is a property of the record and the filesystem, not of the ledger. Static so
+    /// the engine can re-check it at the moment it acts, rather than trusting a value the UI
+    /// computed when the window opened.
+    public static func health(of record: MoveRecord) -> LinkHealth {
         let fm = FileManager.default
         guard let target = record.currentTarget() else { return .volumeMissing }
         let source = record.sourceURL

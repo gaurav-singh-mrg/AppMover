@@ -96,9 +96,8 @@ struct SettingsView: View {
     private var folderBinding: Binding<String> {
         Binding(get: { state.settings.destinationFolder },
                 set: { value in
-                    let cleaned = value.trimmingCharacters(in: CharacterSet(charactersIn: " /"))
                     Task { await state.updateSettings {
-                        $0.destinationFolder = cleaned.isEmpty ? "AppMover" : cleaned
+                        $0.destinationFolder = Settings.sanitizedFolder(value)
                     } }
                 })
     }

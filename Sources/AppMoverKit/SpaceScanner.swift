@@ -24,6 +24,12 @@ public struct FolderSize: Identifiable, Equatable, Sendable {
     /// True when the data is somewhere other than where the app looks for it.
     public var isRelocated: Bool { currentLocation.path != url.path }
 
+    /// Immutable copy carrying a size measured somewhere other than `du`.
+    public func withBytes(_ bytes: Int64) -> FolderSize {
+        FolderSize(url: url, bytes: bytes, category: category,
+                   isSymlink: isSymlink, needsAdmin: needsAdmin)
+    }
+
     /// Where this lands on the destination drive: <folder>/<category>/<name>.
     public func destinationSubpath(root: String) -> String {
         "\(root)/\(category.destinationFolder)/\(name)"
@@ -66,6 +72,26 @@ public struct SpaceScanner: Sendable {
             return all.filter { allowlist.isAllowed($0.url) }
                       .sorted { $0.bytes > $1.bytes }
         }
+    }
+
+    /// Folders left behind by a run that died between the rename and the symlink.
+    ///
+    /// At that instant the original has been renamed to `<name>.appmover.bak` and nothing
+    /// has taken its place, so the folder has simply vanished as far as its app is concerned.
+    /// The data is intact and one rename away, but nothing ever looked for it: `staleBackup`
+    /// only fires if the user happens to move that same folder again.
+    public func strandedBackups() -> [URL] {
+        let fm = FileManager.default
+        let suffixes = [".appmover.bak", ".appmover.restore"]
+        return categories.flatMap { category -> [URL] in
+            let children = (try? fm.contentsOfDirectory(
+                at: category.sourceRoot(home: home),
+                includingPropertiesForKeys: nil, options: [])) ?? []
+            return children.filter { url in
+                suffixes.contains { url.lastPathComponent.hasSuffix($0) }
+            }
+        }
+        .sorted { $0.path < $1.path }
     }
 
     static func sizes(in category: FolderCategory, home: URL) -> [FolderSize] {

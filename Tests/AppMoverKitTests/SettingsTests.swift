@@ -143,3 +143,32 @@ struct CurrentLocationTests {
         #expect(folder.currentLocation.lastPathComponent == "Gone")
     }
 }
+
+@Suite("Destination folder name")
+struct SanitizedFolderTests {
+    @Test("strips the .. components that would walk the destination off the drive")
+    func stripsParentTraversal() {
+        #expect(Settings.sanitizedFolder("../Caches") == "Caches")
+        #expect(Settings.sanitizedFolder("AppMover/../../etc") == "AppMover/etc")
+    }
+
+    @Test("strips . components and stray slashes")
+    func stripsNoiseComponents() {
+        #expect(Settings.sanitizedFolder("/AppMover/") == "AppMover")
+        #expect(Settings.sanitizedFolder("./AppMover") == "AppMover")
+        #expect(Settings.sanitizedFolder("a//b") == "a/b")
+    }
+
+    @Test("keeps an ordinary name, spaces and all")
+    func keepsOrdinaryNames() {
+        #expect(Settings.sanitizedFolder("My Moved Data") == "My Moved Data")
+        #expect(Settings.sanitizedFolder("  AppMover  ") == "AppMover")
+    }
+
+    @Test("falls back to the default rather than an empty name")
+    func fallsBackWhenEmptied() {
+        #expect(Settings.sanitizedFolder("..") == "AppMover")
+        #expect(Settings.sanitizedFolder("   ") == "AppMover")
+        #expect(Settings.sanitizedFolder("") == "AppMover")
+    }
+}

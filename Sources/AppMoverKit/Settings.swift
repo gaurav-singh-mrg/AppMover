@@ -46,6 +46,16 @@ public struct Settings: Codable, Equatable, Sendable {
         }
     }
 
+    /// Cleans a user-typed folder name. Enforced again in `Engine.move`: this is the boundary
+    /// that gives immediate feedback, that one is the boundary that guarantees safety.
+    public static func sanitizedFolder(_ raw: String) -> String {
+        let cleaned = raw.split(separator: "/")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0 != "." && $0 != ".." }
+            .joined(separator: "/")
+        return cleaned.isEmpty ? Settings().destinationFolder : cleaned
+    }
+
     public func with(_ change: (inout Settings) -> Void) -> Settings {
         var copy = self
         change(&copy)

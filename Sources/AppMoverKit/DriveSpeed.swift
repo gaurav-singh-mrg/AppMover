@@ -14,9 +14,17 @@ public struct DriveSpeed: Codable, Equatable, Sendable {
         String(format: "%.0f MB/s", megabytesPerSecond)
     }
 
+    /// Ranked by how often the data is read, not by how safe it is to lose.
+    ///
+    /// Caches are the safest thing to move and the worst thing to put here: they are the
+    /// hottest-read data on the machine, touched on every launch, all day. Archives and
+    /// rarely-opened app data are cold, so a slow drive costs nothing. Getting this backwards
+    /// is how the app gets quietly abandoned -- nothing breaks, everything just feels worse,
+    /// and nobody connects the two.
     public var warning: String {
-        "This drive writes at \(summary). Apps reading from here will be slower than "
-        + "your internal SSD -- fine for caches and archives, noticeable for active app data."
+        "This drive writes at \(summary), well below your internal SSD. Best for archives and "
+        + "apps you rarely open. Avoid moving Caches here -- they are read constantly, so a "
+        + "slow drive makes every app that uses them feel sluggish."
     }
 }
 

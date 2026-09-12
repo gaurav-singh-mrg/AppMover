@@ -51,9 +51,10 @@ struct AppRow: View {
     private var actionButton: some View {
         if group.movableFolders.isEmpty {
             Button("Undo") { Task { await state.undoAll(group) } }
-                .disabled(!canUndo)
+                .disabled(!canUndo || state.isBusy)
         } else {
             Button(group.isPartiallyMoved ? "Move rest" : "Move", action: move)
+                .disabled(state.isBusy)
         }
     }
 
@@ -66,6 +67,7 @@ struct AppRow: View {
 struct FolderDetailRow: View {
     @Environment(AppState.self) private var state
     let folder: FolderSize
+    @State private var isConfirmingDiscard = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -104,14 +106,46 @@ struct FolderDetailRow: View {
                   ? "Reveal in Finder"
                   : "Not available — connect the drive to see this folder")
 
-            if let record = state.record(for: folder) {
+            if let record, state.health(record) == .orphaned {
+                // Undo and Move both throw in this state. This is the only way out.
+                Button("Clean Up") { isConfirmingDiscard = true }
+                    .controlSize(.small)
+                    .disabled(state.isBusy)
+            } else if let record {
                 Button("Undo") { Task { await state.undo(record) } }
                     .controlSize(.small)
-                    .disabled(state.health(record) == .volumeMissing)
+                    .disabled(state.health(record) == .volumeMissing || state.isBusy)
             }
         }
         .padding(.leading, 26)
         .padding(.vertical, 2)
+        .confirmationDialog("Remove the abandoned copy on the drive?",
+                            isPresented: $isConfirmingDiscard) {
+            Button("Remove Copy on Drive", role: .destructive) {
+                guard let record else { return }
+                Task { await state.discardOrphan(record) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(discardExplanation)
+        }
+    }
+
+    /// Both copies, both dates: the user is deleting one of two real folders and the app
+    /// should not be the only one that knows which.
+    private var discardExplanation: String {
+        guard let record else { return "" }
+        return """
+            Something replaced the link with a real folder — usually an app updating itself. \
+            There are now two copies:
+
+            • On this Mac, in use: \(folder.bytes.asStorage)
+            • On the drive, abandoned since \
+            \(record.movedAt.formatted(date: .abbreviated, time: .shortened)): \
+            \(record.sizeBytes.asStorage)
+
+            Only the abandoned copy is removed. The folder this Mac is using is untouched.
+            """
     }
 
     private var record: MoveRecord? { state.record(for: folder) }

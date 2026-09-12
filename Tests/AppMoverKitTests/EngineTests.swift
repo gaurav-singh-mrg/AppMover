@@ -7,10 +7,11 @@ struct Sandbox {
     let home: URL
     let allowlist: Allowlist
 
-    init() throws {
-        home = URL(filePath: NSTemporaryDirectory())
+    /// `home` is injectable so a test can put it on a different volume from the destination.
+    init(home: URL? = nil) throws {
+        self.home = home ?? URL(filePath: NSTemporaryDirectory())
             .appending(path: "appmover-tests/\(UUID().uuidString)")
-        allowlist = Allowlist(home: home)
+        allowlist = Allowlist(home: self.home)
         for root in allowlist.roots {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         }
