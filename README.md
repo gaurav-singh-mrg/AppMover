@@ -5,7 +5,7 @@ behind so apps still find their data. Undo puts everything back.
 
 ```
 ./build-app.sh          # builds AppMover.app
-swift test              # 87 tests
+swift test              # 95 tests
 ```
 
 One row per app, showing everything of its that is on disk — Application Support, Caches and
