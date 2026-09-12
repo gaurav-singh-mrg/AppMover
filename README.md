@@ -5,14 +5,16 @@ behind so apps still find their data. Undo puts everything back.
 
 ```
 ./build-app.sh          # builds AppMover.app
-swift test              # 95 tests
+swift test              # 110 tests
 ```
 
-One row per app, showing everything of its that is on disk — Application Support, Caches and
-Developer data together — expandable to the individual folders, each showing where its data
-currently lives with a button to reveal it in Finder. Settings chooses the drive, the folder
-on it, and which categories to show. The list can be searched and sorted by size, name, or
-location (moved first); the sort persists, the search does not.
+Two tabs: **On This Mac**, everything still on the startup disk, and **Moved**, everything
+already on the drive with a button to put it back. One row per app, showing everything of its
+that is on disk — Application Support, Caches and Developer data together — expandable to the
+individual folders, each showing where its data currently lives with a button to reveal it in
+Finder. Settings chooses the drive, the folder on it, and which categories to show. The list
+can be searched and sorted by size, name, or location (moved first); the sort persists, the
+search does not. A move shows a real progress bar, driven by bytes copied.
 
 ## Destination layout
 
@@ -68,6 +70,19 @@ Any failure restores the original and removes the partial copy. Verified on real
   named "Visual Studio Code" through its `com.microsoft.VSCode.ShipIt` folder.
 - **Folders that could never be moved are not listed at all.** Offering a Move button that
   always fails is worse than omitting the folder.
+- **macOS's own folders are hidden, unless an installed app claims them.** Two thirds of
+  `~/Library/Caches` is `com.apple.*` — TCC, controlcenter, akd — and none of it belongs to
+  an app the user would recognise. The escape hatch is the claim: `com.apple.dt.Xcode`
+  resolves to an installed Xcode.app and stays, because it is Xcode's data and the largest
+  single win on a developer's disk. A row with anything already moved is never hidden — that
+  would hide its Undo, and with it the only route back.
+- **The progress bar counts bytes, not steps.** `ditto -V` narrates every file to stderr and
+  its byte counts sum to exactly the logical byte count `Manifest` measures, so the bar is
+  measured against the same number verification later compares. The narration is drained as
+  it arrives: buffered until exit, a large tree overruns the 64K pipe and ditto blocks
+  forever writing into a pipe nobody reads.
+- **A partly-moved app appears in both tabs.** It has folders left to move and folders
+  available to undo, and either one is what the user came for.
 - **Settings decode field by field with fallbacks.** Synthesised `Codable` throws on a
   missing key, so adding a preference would make an older settings file fail to load and
   silently reset every other preference, including the chosen drive.

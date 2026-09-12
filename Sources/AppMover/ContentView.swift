@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(AppState.self) private var state
     @State private var pendingMove: AppGroup?
     @State private var showingSettings = false
+    @State private var tab: ListTab = .onThisMac
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,36 +15,18 @@ struct ContentView: View {
                 StrandedBackupNotice(backups: state.strandedBackups)
                 Divider()
             }
-            FilterBar()
+            FilterBar(shown: state.groups(in: tab).count, total: state.total(in: tab))
             Divider()
 
             if state.readFailed {
                 FullDiskAccessNotice()
             } else {
-                if state.arrangedGroups.isEmpty && state.isSearching {
-                    ContentUnavailableView.search(text: state.searchText)
-                } else {
-                    List {
-                        if state.isScanning && state.groups.isEmpty {
-                            HStack { ProgressView().controlSize(.small); Text("Scanning…") }
-                        }
-                        ForEach(state.arrangedGroups) { group in
-                            AppRow(group: group) { pendingMove = group }
-                        }
-                    }
-                    .listStyle(.inset)
-                    .alternatingRowBackgrounds()
-                }
+                tabs
             }
 
             if let busy = state.busyMessage {
                 Divider()
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text(busy).font(.callout)
-                    Spacer()
-                }
-                .padding(10)
+                BusyBar(message: busy, progress: state.moveProgress)
             }
         }
         .frame(minWidth: 680, minHeight: 480)
@@ -68,6 +51,22 @@ struct ContentView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
+    }
+
+    private var tabs: some View {
+        // Written out rather than looped: a ForEach here builds the tabs dynamically and
+        // TabView then ignores the selection binding, opening on the last tab every time.
+        TabView(selection: $tab) {
+            tabContent(.onThisMac)
+            tabContent(.moved)
+        }
+        .padding(.horizontal, 10).padding(.top, 8)
+    }
+
+    private func tabContent(_ item: ListTab) -> some View {
+        GroupListView(tab: item, groups: state.groups(in: item)) { pendingMove = $0 }
+            .tabItem { Text("\(item.title) (\(state.total(in: item)))") }
+            .tag(item)
     }
 
     /// Names the folders being moved, not just the app, so the scope is never a surprise.
@@ -133,6 +132,8 @@ struct DestinationBar: View {
 
 struct FilterBar: View {
     @Environment(AppState.self) private var state
+    let shown: Int
+    let total: Int
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -179,11 +180,34 @@ struct FilterBar: View {
     }
 
     private var countLabel: String {
-        let shown = state.arrangedGroups.count
-        guard state.isSearching else {
-            return "\(shown) app\(shown == 1 ? "" : "s")"
+        guard state.isSearching else { return "\(shown) app\(shown == 1 ? "" : "s")" }
+        return "\(shown) of \(total)"
+    }
+}
+
+/// One line for whatever is in flight. A copy reports real bytes, so the bar is determinate;
+/// everything else -- the pre-flight checks, a cleanup -- has nothing to count and spins.
+struct BusyBar: View {
+    let message: String
+    let progress: MoveProgress?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let progress {
+                ProgressView(value: progress.fraction)
+                    .frame(width: 160)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(message).font(.callout)
+                    Text("\(progress.phase.rawValue) — \(Int(progress.fraction * 100))%")
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
+            } else {
+                ProgressView().controlSize(.small)
+                Text(message).font(.callout)
+            }
+            Spacer()
         }
-        return "\(shown) of \(state.groups.count)"
+        .padding(10)
     }
 }
 

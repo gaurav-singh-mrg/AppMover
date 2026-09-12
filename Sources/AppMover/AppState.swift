@@ -16,13 +16,28 @@ final class AppState {
     var errorMessage: String?
     var readFailed = false
     var searchText = ""
+    var moveProgress: MoveProgress?
     var strandedBackups: [URL] = []
 
     private var folders: [FolderSize] = []
 
-    /// What the list actually shows: searched, then sorted.
+    /// What the list actually shows: system folders dropped, searched, then sorted.
     var arrangedGroups: [AppGroup] {
         GroupList.arrange(groups, sort: settings.sortOrder, search: searchText)
+    }
+
+    /// What one tab shows. A partly-moved row appears in both on purpose: it has folders
+    /// left to move and folders available to undo, and either is what the user came for.
+    func groups(in tab: ListTab) -> [AppGroup] { split(arrangedGroups, tab) }
+
+    /// The same tab ignoring the search box -- the denominator in "3 of 40".
+    func total(in tab: ListTab) -> Int { split(GroupList.visible(groups), tab).count }
+
+    private func split(_ groups: [AppGroup], _ tab: ListTab) -> [AppGroup] {
+        switch tab {
+        case .onThisMac: groups.filter { !$0.movableFolders.isEmpty }
+        case .moved: groups.filter { $0.isFullyMoved || $0.isPartiallyMoved }
+        }
     }
 
     var isSearching: Bool {
@@ -38,9 +53,6 @@ final class AppState {
     var destinationSpeed: DriveSpeed? {
         destination.flatMap { speeds.speed(forVolume: $0.uuid) }
     }
-
-    var movableGroups: [AppGroup] { groups.filter { !$0.movableFolders.isEmpty } }
-    var movedGroups: [AppGroup] { groups.filter { $0.isFullyMoved || $0.isPartiallyMoved } }
 
     var reclaimedBytes: Int64 { ledger.links.reduce(0) { $0 + $1.sizeBytes } }
 
@@ -122,7 +134,19 @@ final class AppState {
         // Claimed before the first check, not at the first copy: the checks below await, and
         // until this is set every Move and Undo button in the window is still live.
         busyMessage = "Checking \(group.displayName)…"
-        defer { busyMessage = nil }
+        moveProgress = nil
+        // One stream for the row, not one per folder: the bar restarts at each folder
+        // because each folder is a separate copy, but the plumbing is set up once.
+        let (steps, report) = AsyncStream<MoveProgress>.makeStream()
+        let watcher = Task { @MainActor [weak self] in
+            for await step in steps { self?.moveProgress = step }
+        }
+        defer {
+            report.finish()
+            watcher.cancel()
+            busyMessage = nil
+            moveProgress = nil
+        }
 
         for folder in group.movableFolders {
             // An orphan would fail with "destination already exists", which tells the user
@@ -148,7 +172,8 @@ final class AppState {
                 let record = try await run {
                     try Engine(allowlist: allowlist).move(
                         source: folder.url, toVolume: volume,
-                        subpath: folder.destinationSubpath(root: root))
+                        subpath: folder.destinationSubpath(root: root),
+                        progress: { report.yield($0) })
                 }
                 ledger = ledger.adding(record)
                 try ledger.save()
@@ -205,9 +230,19 @@ final class AppState {
 
     func undo(_ record: MoveRecord) async {
         busyMessage = "Restoring \(record.displayName)…"
-        defer { busyMessage = nil }
+        moveProgress = nil
+        let (steps, report) = AsyncStream<MoveProgress>.makeStream()
+        let watcher = Task { @MainActor [weak self] in
+            for await step in steps { self?.moveProgress = step }
+        }
+        defer {
+            report.finish()
+            watcher.cancel()
+            busyMessage = nil
+            moveProgress = nil
+        }
         do {
-            try await run { try Engine().undo(record) }
+            try await run { try Engine().undo(record, progress: { report.yield($0) }) }
             ledger = ledger.removing(source: record.source)
             try ledger.save()
             await refresh()

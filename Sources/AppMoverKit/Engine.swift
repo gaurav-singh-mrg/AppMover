@@ -1,19 +1,15 @@
 import Foundation
 
-public enum MovePhase: String, Sendable {
-    case copying = "Copying"
-    case verifying = "Verifying"
-    case linking = "Linking"
-    case cleaningUp = "Cleaning up"
-}
-
 /// Moves a folder to another volume and leaves a symlink behind.
 ///
 /// Safety model: the original is renamed aside, never deleted, until the copy has been
 /// verified AND the symlink resolves. The dangerous window is a rename, not a delete.
 /// Validated on real data: feishin, 559MB / 4558 entries, byte-identical roundtrip.
 public struct Engine: Sendable {
-    public typealias ProgressHandler = @Sendable (MovePhase) -> Void
+    public typealias ProgressHandler = @Sendable (MoveProgress) -> Void
+
+    /// Enough of ditto's stderr to explain a failure, without the -V narration behind it.
+    private static let errorLineLimit = 8
 
     private let allowlist: Allowlist
     public init(allowlist: Allowlist = Allowlist()) { self.allowlist = allowlist }
@@ -56,18 +52,20 @@ public struct Engine: Sendable {
             source: Volume.containing(source), requiredBytes: expected.logicalBytes)
 
         // 1. copy
-        progress(.copying)
+        progress(MoveProgress(phase: .copying))
         try fm.createDirectory(at: destination.deletingLastPathComponent(),
                                withIntermediateDirectories: true)
         do {
-            try runDitto(from: source, to: destination)
+            try runDitto(from: source, to: destination, expecting: expected.logicalBytes) {
+                progress(MoveProgress(phase: .copying, within: $0))
+            }
         } catch {
             nuke(destination)
             throw error
         }
 
         // 2. verify before touching the original
-        progress(.verifying)
+        progress(MoveProgress(phase: .verifying))
         let copied = try Manifest.scan(destination)
         guard copied == expected else {
             nuke(destination)
@@ -75,7 +73,7 @@ public struct Engine: Sendable {
         }
 
         // 3. rename aside -- NOT a delete
-        progress(.linking)
+        progress(MoveProgress(phase: .linking))
         try fm.moveItem(at: source, to: backup)
 
         // 4. link, restoring the original if anything goes wrong
@@ -97,8 +95,9 @@ public struct Engine: Sendable {
         }
 
         // 6. only now is it safe to drop the original
-        progress(.cleaningUp)
+        progress(MoveProgress(phase: .cleaningUp))
         nuke(backup)
+        progress(MoveProgress(phase: .cleaningUp, within: 1))
 
         return MoveRecord(source: source.path, volumeUUID: volume.uuid, relativePath: subpath,
                           movedAt: Date(), sizeBytes: expected.logicalBytes)
@@ -130,22 +129,24 @@ public struct Engine: Sendable {
         }
         try internalVolume.validateAsDestination(source: nil, requiredBytes: expected.logicalBytes)
 
-        progress(.copying)
+        progress(MoveProgress(phase: .copying))
         do {
-            try runDitto(from: target, to: restore)
+            try runDitto(from: target, to: restore, expecting: expected.logicalBytes) {
+                progress(MoveProgress(phase: .copying, within: $0))
+            }
         } catch {
             nuke(restore)
             throw error
         }
 
-        progress(.verifying)
+        progress(MoveProgress(phase: .verifying))
         let restored = try Manifest.scan(restore)
         guard restored == expected else {
             nuke(restore)
             throw EngineError.verifyMismatch(source: expected, destination: restored)
         }
 
-        progress(.linking)
+        progress(MoveProgress(phase: .linking))
         // moveItem will not overwrite, so the link must go first. For the moment between
         // these two calls the path does not exist; if the process dies here the data is
         // intact at `restore`, which is what the error names.
@@ -158,9 +159,10 @@ public struct Engine: Sendable {
                 + "rename it back to \(source.lastPathComponent).")
         }
 
-        progress(.cleaningUp)
+        progress(MoveProgress(phase: .cleaningUp))
         nuke(target)                         // external copy goes last
         removeIfEmpty(target.deletingLastPathComponent())
+        progress(MoveProgress(phase: .cleaningUp, within: 1))
     }
 
     // MARK: - Orphan repair
@@ -201,10 +203,58 @@ public struct Engine: Sendable {
 
     /// ditto, not FileManager.copyItem: it is the macOS-correct tool for resource forks,
     /// extended attributes and ACLs, and it is what the validated prototype used.
-    private func runDitto(from: URL, to: URL) throws {
-        let (status, stderr) = try run("/usr/bin/ditto", [from.path, to.path])
-        guard status == 0 else {
-            throw EngineError.copyFailed(stderr.isEmpty ? "ditto exited \(status)" : stderr)
+    ///
+    /// `-V` narrates every file to stderr, which is the only progress ditto offers. That
+    /// narration is drained as it arrives, never after exit: a large tree overruns the 64K
+    /// pipe buffer and ditto would then block forever writing into a pipe nobody reads.
+    private func runDitto(
+        from: URL, to: URL, expecting bytes: Int64, report: (Double) -> Void
+    ) throws {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/ditto")
+        process.arguments = ["-V", from.path, to.path]
+        let pipe = Pipe()
+        process.standardError = pipe
+        process.standardOutput = FileHandle.nullDevice
+        try process.run()
+
+        var copied: Int64 = 0
+        var lastPercent = -1
+        var failure: [String] = []
+
+        func consume(_ line: String) {
+            if let counted = DittoLine.bytes(in: line) {
+                copied += counted
+                guard bytes > 0 else { return }
+                // One callback per file would be tens of thousands of hops to the main
+                // actor for a bar that is 400 pixels wide.
+                let percent = Int(Double(copied) / Double(bytes) * 100)
+                guard percent != lastPercent else { return }
+                lastPercent = percent
+                report(min(Double(copied) / Double(bytes), 1))
+            } else if !DittoLine.isNarration(line) {
+                failure.append(line)
+                if failure.count > Self.errorLineLimit { failure.removeFirst() }
+            }
+        }
+
+        let handle = pipe.fileHandleForReading
+        var buffer = Data()
+        while case let chunk = handle.availableData, !chunk.isEmpty {
+            buffer.append(chunk)
+            while let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                consume(String(decoding: buffer[buffer.startIndex..<newline], as: UTF8.self))
+                buffer.removeSubrange(buffer.startIndex...newline)
+            }
+        }
+        if !buffer.isEmpty { consume(String(decoding: buffer, as: UTF8.self)) }
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let message = failure.joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw EngineError.copyFailed(
+                message.isEmpty ? "ditto exited \(process.terminationStatus)" : message)
         }
     }
 

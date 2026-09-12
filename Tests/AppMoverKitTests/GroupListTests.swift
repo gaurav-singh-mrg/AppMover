@@ -143,3 +143,81 @@ struct ScannerFilterTests {
         #expect(found == ["Fine"])
     }
 }
+
+@Suite("Hiding macOS's own folders")
+struct SystemFolderTests {
+    func folder(_ name: String, moved: Bool = false) -> FolderSize {
+        FolderSize(url: FolderCategory.caches.sourceRoot().appending(path: name),
+                   bytes: 100, category: .caches, isSymlink: moved, needsAdmin: false)
+    }
+
+    func group(_ name: String, _ folders: [FolderSize], app: URL? = nil) -> AppGroup {
+        AppGroup(id: name.lowercased(), displayName: name, appURL: app, folders: folders)
+    }
+
+    @Test("hides com.apple.* folders no installed app claims")
+    func hidesBundleIdentifiers() {
+        let groups = [group("com.apple.TCC", [folder("com.apple.TCC")]),
+                      group("Feishin", [folder("Feishin")])]
+        #expect(GroupList.visible(groups).map(\.displayName) == ["Feishin"])
+    }
+
+    @Test("hides Apple system folders that are not bundle identifiers",
+          arguments: ["Knowledge", "MobileSync", "AddressBook", "CallHistoryDB",
+                      "CallHistoryTransactions", "SyncServices", "Apple"])
+    func hidesNamedSystemFolders(name: String) {
+        #expect(GroupList.visible([group(name, [folder(name)])]).isEmpty)
+    }
+
+    @Test("keeps an Apple folder an installed app claims")
+    func keepsXcode() {
+        let xcode = group("Xcode", [folder("com.apple.dt.Xcode")],
+                          app: URL(filePath: "/Applications/Xcode.app"))
+        #expect(GroupList.visible([xcode]).count == 1)
+    }
+
+    @Test("never hides a row with something already moved")
+    func keepsMovedRows() {
+        let moved = group("com.apple.TCC", [folder("com.apple.TCC", moved: true)])
+        #expect(GroupList.visible([moved]).count == 1)
+    }
+
+    @Test("keeps a row whose folders are not all Apple's")
+    func keepsMixedRows() {
+        let mixed = group("Thing", [folder("com.apple.Thing"), folder("Thing")])
+        #expect(GroupList.visible([mixed]).count == 1)
+    }
+
+    @Test("the search denominator drops what is hidden")
+    func arrangeHides() {
+        let groups = [group("com.apple.TCC", [folder("com.apple.TCC")]),
+                      group("Feishin", [folder("Feishin")])]
+        #expect(GroupList.arrange(groups, sort: .size).count == 1)
+    }
+}
+
+@Suite("Apps that need an administrator sort last")
+struct AdminSortTests {
+    func group(_ name: String, bytes: Int64, admin: Bool) -> AppGroup {
+        let folder = FolderSize(url: FolderCategory.caches.sourceRoot().appending(path: name),
+                                bytes: bytes, category: .caches,
+                                isSymlink: false, needsAdmin: admin)
+        return AppGroup(id: name.lowercased(), displayName: name, appURL: nil, folders: [folder])
+    }
+
+    @Test("a huge locked app sinks below every app that can just be moved")
+    func lockedSinks() {
+        let groups = [group("Locked", bytes: 90_000, admin: true),
+                      group("Small", bytes: 10, admin: false),
+                      group("Big", bytes: 5_000, admin: false)]
+        #expect(GroupList.sorted(groups, by: .size).map(\.displayName)
+                == ["Big", "Small", "Locked"])
+    }
+
+    @Test("locked apps are still ordered among themselves by size")
+    func lockedOrderedBySize() {
+        let groups = [group("Smaller", bytes: 10, admin: true),
+                      group("Larger", bytes: 900, admin: true)]
+        #expect(GroupList.sorted(groups, by: .size).map(\.displayName) == ["Larger", "Smaller"])
+    }
+}
