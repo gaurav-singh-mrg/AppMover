@@ -11,6 +11,10 @@ struct ContentView: View {
         VStack(spacing: 0) {
             DestinationBar(showingSettings: $showingSettings)
             Divider()
+            if let version = state.availableUpdate {
+                UpdateNotice(version: version)
+                Divider()
+            }
             if !state.strandedBackups.isEmpty {
                 StrandedBackupNotice(backups: state.strandedBackups)
                 Divider()
@@ -31,6 +35,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 680, minHeight: 480)
         .task { await state.refresh() }
+        .task { await state.checkForUpdate() }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .confirmationDialog(
             "Move \(pendingMove?.displayName ?? "")?",
@@ -250,6 +255,21 @@ struct StrandedBackupNotice: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(.orange.opacity(0.1))
+    }
+}
+
+struct UpdateNotice: View {
+    let version: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.down.circle.fill").foregroundStyle(.tint)
+            Text("AppMover \(version) is available").fontWeight(.medium)
+            Spacer(minLength: 8)
+            Button("Download") { NSWorkspace.shared.open(UpdateCheck.releasesPage) }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.tint.opacity(0.1))
     }
 }
 

@@ -3,11 +3,6 @@
 Moves folders off a full macOS startup disk onto an external drive, leaving a symlink
 behind so apps still find their data. Undo puts everything back.
 
-```
-./build-app.sh          # builds AppMover.app
-swift test              # 110 tests
-```
-
 Two tabs: **On This Mac**, everything still on the startup disk, and **Moved**, everything
 already on the drive with a button to put it back. One row per app, showing everything of its
 that is on disk — Application Support, Caches and Developer data together — expandable to the
@@ -15,6 +10,102 @@ individual folders, each showing where its data currently lives with a button to
 Finder. Settings chooses the drive, the folder on it, and which categories to show. The list
 can be searched and sorted by size, name, or location (moved first); the sort persists, the
 search does not. A move shows a real progress bar, driven by bytes copied.
+
+## Requirements
+
+- macOS 14 Sonoma or later
+- **Xcode** 16 or later, not just the Command Line Tools. `build-app.sh` runs `xcstringstool`,
+  which only ships with Xcode. Built and tested with Xcode 26.5 / Swift 6.3.
+- `python3`, which the build uses to check translations. Xcode includes it.
+- An external drive to move folders onto.
+
+No third-party dependencies, no Xcode project: it is a plain Swift package.
+
+## Setup
+
+```sh
+git clone https://github.com/gaurav-singh-mrg/AppMover.git
+cd AppMover
+
+# If Xcode lives somewhere unusual, or `xcrun --find xcstringstool` fails:
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
+./build-app.sh          # release build → ./AppMover.app
+open AppMover.app
+```
+
+`./build-app.sh debug` builds a debug version instead. Every build replaces `AppMover.app`
+from scratch.
+
+### First launch
+
+1. Open **Settings** (the gear in the top bar) and pick the external drive, the folder on it
+   (default `AppMover`), and which categories to show.
+2. If the window says **Can't read your Library**, click **Open Privacy Settings**, add
+   `AppMover.app` under *Full Disk Access*, then quit and reopen the app.
+3. The build is signed ad-hoc, so its signature changes on every build. If you granted Full
+   Disk Access, remove and re-add the app after each rebuild.
+
+The app keeps its state on the internal disk, in `~/Library/Application Support/AppMover/`:
+`settings.json` for preferences and `links.json` for the ledger of moved folders. Keep
+`links.json` while anything is moved, because Undo reads it.
+
+## Releasing
+
+```sh
+./release.sh 0.2.0
+```
+
+Commit first; the script refuses a dirty tree. It tags `v0.2.0`, builds, zips the app and
+publishes a GitHub release with `gh`. Each time its window opens, the app asks GitHub for the
+latest release and shows a **Download** banner if that release is newer than its own
+version. The app never installs anything itself.
+
+- The repository must be public. On a private one GitHub answers 404 and no update is shown.
+- The build's version comes from the newest git tag, so tag before building. `release.sh`
+  does this for you. If a release fails partway, delete the tag with `git tag -d v0.2.0`
+  before running it again.
+- Downloads aren't notarized, so macOS blocks the first launch. Open it via **System Settings
+  → Privacy & Security → Open Anyway**.
+
+## Development
+
+```sh
+swift build                       # compile only
+swift test                        # 115 tests, headless, run against temporary folders
+swift test --filter EngineTests   # a single suite
+```
+
+The UI (`Sources/AppMover`) is a thin SwiftUI layer. Moving, verifying, undoing, scanning and
+the ledger live in `AppMoverKit`, which is what the tests cover. You can open `Package.swift` in
+Xcode to edit and test, but run the app from the bundle `build-app.sh` makes, because that is
+where the icon, `Info.plist` and translations are added.
+
+**Real-drive test.** One suite moves a real folder to a real volume and back, then checks it
+byte for byte. It is skipped unless you enable it:
+
+```sh
+APPMOVER_REAL_FOLDER="$HOME/Library/Application Support/<some folder>" \
+APPMOVER_REAL_VOLUME=/Volumes/<your drive> swift test --filter RealData
+```
+
+**App icon.** `Resources/AppIcon.icns` is committed. Run `Resources/make-icon.sh` only after
+changing the artwork.
+
+**Translations.** See [Languages](#languages). The build fails if a translation's
+placeholders don't match the English string.
+
+### Layout
+
+```
+Sources/AppMoverKit/   engine, ledger, scanner, settings: all the logic
+Sources/AppMover/      SwiftUI app and menu bar item
+Tests/AppMoverKitTests/
+Resources/             string catalog, icon, icon generator
+build-app.sh           builds, localizes, bundles and signs AppMover.app
+proto/                 the original shell prototypes of move and undo
+PREMORTEM.md           failure modes considered before building
+```
 
 ## Languages
 

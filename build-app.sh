@@ -7,6 +7,11 @@ cd "$(dirname "$0")"
 CONFIG="${1:-release}"
 APP="AppMover.app"
 BUNDLE_ID="com.gauravkumar.appmover"
+# The update check compares this against the newest GitHub release tag, so it must come from
+# the tag, not a hand-edited string. Untagged builds are 0.0.0: every release is newer.
+VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)"
+VERSION="${VERSION#v}"
+BUILD="$(git rev-list --count HEAD)"
 
 # The compiler lists every localizable string it sees. Kept under .build, not a temp dir: an
 # incremental build only re-emits the files it recompiled, and syncing a partial list would
@@ -57,8 +62,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key><string>AppMover</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>$VERSION</string>
+    <key>CFBundleVersion</key><string>$BUILD</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSHumanReadableCopyright</key><string>AppMover</string>

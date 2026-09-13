@@ -40,16 +40,16 @@
     },
     "%@ Your data is safe at %@ -- rename it back to %@." : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ Your data is safe at %2$@ -- rename it back to %3$@."
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ Ihre Daten sind sicher unter %2$@ – benennen Sie sie wieder in %3$@ um."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ Your data is safe at %2$@ -- rename it back to %3$@."
           }
         },
         "es" : {
@@ -389,16 +389,16 @@
     },
     "%@ — %@ free" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ — %2$@ free"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ – %2$@ frei"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ — %2$@ free"
           }
         },
         "es" : {
@@ -463,16 +463,16 @@
     },
     "%@: quit %@ first. Moving this folder while it is running would silently discard everything it writes from now until it quits." : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: quit %2$@ first. Moving this folder while it is running would silently discard everything it writes from now until it quits."
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@: Beenden Sie zuerst %2$@. Wird dieser Ordner verschoben, während die App läuft, geht alles, was sie ab jetzt bis zum Beenden schreibt, unbemerkt verloren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: quit %2$@ first. Moving this folder while it is running would silently discard everything it writes from now until it quits."
           }
         },
         "es" : {
@@ -503,24 +503,6 @@
     },
     "%lld apps" : {
       "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld app"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld apps"
-                }
-              }
-            }
-          }
-        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -534,6 +516,24 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld Apps"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld app"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld apps"
                 }
               }
             }
@@ -591,16 +591,16 @@
     },
     "%lld of %lld" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld of %2$lld"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld von %2$lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld"
           }
         },
         "es" : {
@@ -631,24 +631,6 @@
     },
     "%lld recovered folders are waiting. Their apps cannot see them until you rename them back, dropping the \".appmover.bak\" or \".appmover.restore\" suffix." : {
       "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld recovered folder is waiting. Its app cannot see it until you rename it back, dropping the \".appmover.bak\" or \".appmover.restore\" suffix."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld recovered folders are waiting. Their apps cannot see them until you rename them back, dropping the \".appmover.bak\" or \".appmover.restore\" suffix."
-                }
-              }
-            }
-          }
-        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -662,6 +644,24 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld wiederhergestellte Ordner warten. Die zugehörigen Apps sehen sie erst, wenn Sie sie zurückbenennen und die Endung „.appmover.bak“ oder „.appmover.restore“ entfernen."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld recovered folder is waiting. Its app cannot see it until you rename it back, dropping the \".appmover.bak\" or \".appmover.restore\" suffix."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld recovered folders are waiting. Their apps cannot see them until you rename them back, dropping the \".appmover.bak\" or \".appmover.restore\" suffix."
                 }
               }
             }
@@ -855,6 +855,9 @@
     },
     "AppMover" : {
       "shouldTranslate" : false
+    },
+    "AppMover %@ is available" : {
+
     },
     "Application Support" : {
       "localizations" : {
@@ -1198,16 +1201,16 @@
     },
     "Copy did not match: source %lld entries/%lld bytes, copy %lld/%lld" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Copy did not match: source %1$lld entries/%2$lld bytes, copy %3$lld/%4$lld"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kopie stimmt nicht überein: Quelle %1$lld Einträge/%2$lld Byte, Kopie %3$lld/%4$lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy did not match: source %1$lld entries/%2$lld bytes, copy %3$lld/%4$lld"
           }
         },
         "es" : {
@@ -1575,6 +1578,9 @@
           }
         }
       }
+    },
+    "Download" : {
+
     },
     "Drive" : {
       "localizations" : {
@@ -1952,24 +1958,6 @@
     },
     "Move %lld folders" : {
       "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Move %lld folder"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Move %lld folders"
-                }
-              }
-            }
-          }
-        },
         "de" : {
           "variations" : {
             "plural" : {
@@ -1983,6 +1971,24 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld Ordner verschieben"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Move %lld folder"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Move %lld folders"
                 }
               }
             }
@@ -2040,16 +2046,16 @@
     },
     "Move a folder inside %@, not %@ itself." : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Move a folder inside %1$@, not %2$@ itself."
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verschieben Sie einen Ordner innerhalb von %1$@, nicht %2$@ selbst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Move a folder inside %1$@, not %2$@ itself."
           }
         },
         "es" : {
@@ -2216,16 +2222,16 @@
     },
     "Moving %@ — %@…" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Moving %1$@ — %2$@…"
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ wird verschoben – %2$@ …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Moving %1$@ — %2$@…"
           }
         },
         "es" : {
@@ -2256,16 +2262,16 @@
     },
     "Moving to %@:\n\n%@\n\nWhile the drive is disconnected %@ cannot reach this data. Time Machine does not follow links, so these folders will drop out of your backups — keep a copy somewhere else if you cannot regenerate them." : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Moving to %1$@:\n\n%2$@\n\nWhile the drive is disconnected %3$@ cannot reach this data. Time Machine does not follow links, so these folders will drop out of your backups — keep a copy somewhere else if you cannot regenerate them."
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ziel: %1$@\n\n%2$@\n\nSolange das Laufwerk getrennt ist, kann %3$@ nicht auf diese Daten zugreifen. Time Machine folgt keinen Links, daher fallen diese Ordner aus Ihren Backups heraus – bewahren Sie eine Kopie an anderer Stelle auf, wenn sich die Daten nicht neu erzeugen lassen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Moving to %1$@:\n\n%2$@\n\nWhile the drive is disconnected %3$@ cannot reach this data. Time Machine does not follow links, so these folders will drop out of your backups — keep a copy somewhere else if you cannot regenerate them."
           }
         },
         "es" : {
@@ -3316,16 +3322,16 @@
     },
     "Something replaced the link with a real folder — usually an app updating itself. There are now two copies:\n\n• On this Mac, in use: %@\n• On the drive, abandoned since %@: %@\n\nOnly the abandoned copy is removed. The folder this Mac is using is untouched." : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Something replaced the link with a real folder — usually an app updating itself. There are now two copies:\n\n• On this Mac, in use: %1$@\n• On the drive, abandoned since %2$@: %3$@\n\nOnly the abandoned copy is removed. The folder this Mac is using is untouched."
-          }
-        },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Etwas hat den Link durch einen echten Ordner ersetzt – meist eine App, die sich selbst aktualisiert. Es gibt jetzt zwei Kopien:\n\n• Auf diesem Mac, in Gebrauch: %1$@\n• Auf dem Laufwerk, verwaist seit %2$@: %3$@\n\nNur die verwaiste Kopie wird entfernt. Der Ordner, den dieser Mac verwendet, bleibt unberührt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Something replaced the link with a real folder — usually an app updating itself. There are now two copies:\n\n• On this Mac, in use: %1$@\n• On the drive, abandoned since %2$@: %3$@\n\nOnly the abandoned copy is removed. The folder this Mac is using is untouched."
           }
         },
         "es" : {

@@ -18,6 +18,8 @@ final class AppState {
     var searchText = ""
     var moveProgress: MoveProgress?
     var strandedBackups: [URL] = []
+    /// The version of a newer GitHub release, if there is one.
+    var availableUpdate: String?
 
     private var folders: [FolderSize] = []
 
@@ -93,6 +95,15 @@ final class AppState {
         isScanning = false
         readFailed = folders.isEmpty && ledger.links.isEmpty
         await measureDestinationIfNeeded()
+    }
+
+    func checkForUpdate() async {
+        // Missing under `swift run`, where there is no bundle and nothing to update.
+        guard let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+                as? String else { return }
+        // ponytail: offline or rate-limited counts as "no update" -- an alert on every offline
+        // launch would be worse than a missed banner, and the next window open asks again.
+        availableUpdate = try? await UpdateCheck.newerVersion(than: current)
     }
 
     /// Benchmarks a drive once and remembers it, rather than on every refresh.

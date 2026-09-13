@@ -2,3 +2,4 @@
 .swiftpm/
 *.app/
 DerivedData/
+*.zip
