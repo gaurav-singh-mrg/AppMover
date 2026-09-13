@@ -9,9 +9,9 @@ public enum GroupSort: String, Codable, CaseIterable, Sendable, Identifiable {
 
     public var label: String {
         switch self {
-        case .size: "Size"
-        case .name: "Name"
-        case .location: "Location"
+        case .size: String(localized: "Size")
+        case .name: String(localized: "Name")
+        case .location: String(localized: "Location")
         }
     }
 }
@@ -65,6 +65,7 @@ public enum GroupList {
             if contains(group.displayName, query) { return true }
             return group.folders.contains {
                 contains($0.name, query) || contains($0.category.rawValue, query)
+                    || contains($0.category.label, query)
             }
         }
     }

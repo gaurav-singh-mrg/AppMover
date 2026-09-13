@@ -37,7 +37,7 @@ public struct Engine: Sendable {
         // nuke would every one of them act on the wrong drive.
         guard !subpath.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else {
             throw EngineError.blockedPath(
-                reason: "The folder name on the drive cannot contain \"..\" or \".\".")
+                reason: String(localized: "The folder name on the drive cannot contain \"..\" or \".\"."))
         }
         // fileExists follows symlinks, so a link to a real directory already trips this.
         // The explicit isSymlink check also catches a *dangling* link, which fileExists
@@ -125,7 +125,7 @@ public struct Engine: Sendable {
         // the source is a symlink and resolves to the external volume.
         guard let internalVolume = Volume.containing(source.deletingLastPathComponent()) else {
             throw EngineError.volumeUnsuitable(
-                reason: "Could not identify the disk that \(source.lastPathComponent) belongs on.")
+                reason: String(localized: "Could not identify the disk that \(source.lastPathComponent) belongs on."))
         }
         try internalVolume.validateAsDestination(source: nil, requiredBytes: expected.logicalBytes)
 
@@ -155,8 +155,10 @@ public struct Engine: Sendable {
             try fm.moveItem(at: restore, to: source)
         } catch {
             throw EngineError.copyFailed(
-                "\(error.localizedDescription) Your data is safe at \(restore.path) -- "
-                + "rename it back to \(source.lastPathComponent).")
+                String(localized: """
+                    \(error.localizedDescription) Your data is safe at \(restore.path) -- \
+                    rename it back to \(source.lastPathComponent).
+                    """))
         }
 
         progress(MoveProgress(phase: .cleaningUp))

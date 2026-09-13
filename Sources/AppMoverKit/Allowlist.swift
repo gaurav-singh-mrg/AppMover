@@ -42,24 +42,24 @@ public struct Allowlist: Sendable {
 
         for bad in blocked where path == bad.path || path.hasPrefix(bad.path + "/") {
             throw EngineError.blockedPath(
-                reason: "\(bad.lastPathComponent) is managed by macOS and cannot be relocated safely.")
+                reason: String(localized: "\(bad.lastPathComponent) is managed by macOS and cannot be relocated safely."))
         }
         if isSIPProtected(standardized) {
             throw EngineError.blockedPath(
-                reason: "\(standardized.lastPathComponent) is protected by macOS and cannot be moved.")
+                reason: String(localized: "\(standardized.lastPathComponent) is protected by macOS and cannot be moved."))
         }
         for root in roots where path == resolved(root) {
             throw EngineError.blockedPath(
-                reason: "Move a folder inside \(root.lastPathComponent), not \(root.lastPathComponent) itself.")
+                reason: String(localized: "Move a folder inside \(root.lastPathComponent), not \(root.lastPathComponent) itself."))
         }
         // Direct children only: no descending into a root and moving something deep.
         guard let root = roots.first(where: { path.hasPrefix(resolved($0) + "/") }) else {
             throw EngineError.blockedPath(
-                reason: "\(standardized.lastPathComponent) is not in a folder AppMover manages.")
+                reason: String(localized: "\(standardized.lastPathComponent) is not in a folder AppMover manages."))
         }
         guard path == resolved(root) + "/" + standardized.lastPathComponent else {
             throw EngineError.blockedPath(
-                reason: "Only folders directly inside \(root.lastPathComponent) can be moved.")
+                reason: String(localized: "Only folders directly inside \(root.lastPathComponent) can be moved."))
         }
     }
 

@@ -7,8 +7,8 @@ enum ListTab: Hashable {
 
     var title: String {
         switch self {
-        case .onThisMac: "On This Mac"
-        case .moved: "Moved"
+        case .onThisMac: String(localized: "On This Mac")
+        case .moved: String(localized: "Moved")
         }
     }
 }
@@ -44,7 +44,7 @@ struct GroupListView: View {
     }
 
     private var emptyTitle: String {
-        tab == .moved ? "Nothing moved yet" : "Nothing left to move"
+        tab == .moved ? String(localized: "Nothing moved yet") : String(localized: "Nothing left to move")
     }
 
     private var emptyIcon: String {
@@ -54,9 +54,9 @@ struct GroupListView: View {
     private var emptyMessage: String {
         switch tab {
         case .moved:
-            "Move an app from On This Mac and it appears here, with a button to put it back."
+            String(localized: "Move an app from On This Mac and it appears here, with a button to put it back.")
         case .onThisMac:
-            "Every folder AppMover can see is already on the drive."
+            String(localized: "Every folder AppMover can see is already on the drive.")
         }
     }
 }

@@ -20,7 +20,7 @@ public struct RunningApp: Equatable, Sendable {
         bundlePath.map { URL(filePath: $0).deletingPathExtension().lastPathComponent }
     }
 
-    public var displayName: String { bundleName ?? bundleID ?? "another app" }
+    public var displayName: String { bundleName ?? bundleID ?? String(localized: "another app") }
 }
 
 /// Decides whether a folder belongs to an app that is running right now.

@@ -42,8 +42,8 @@ struct AppRow: View {
     }
 
     private var subtitle: String {
-        if group.isFullyMoved { return "Moved · \(group.categorySummary)" }
-        if group.isPartiallyMoved { return "Partly moved · \(group.categorySummary)" }
+        if group.isFullyMoved { return String(localized: "Moved · \(group.categorySummary)") }
+        if group.isPartiallyMoved { return String(localized: "Partly moved · \(group.categorySummary)") }
         return group.categorySummary
     }
 
@@ -76,7 +76,7 @@ struct FolderDetailRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(folder.category.rawValue).font(.callout)
+                    Text(folder.category.label).font(.callout)
                     Text(status).font(.caption).foregroundStyle(.secondary)
                 }
                 // Where the data actually is right now -- the external path once moved.
@@ -135,7 +135,7 @@ struct FolderDetailRow: View {
     /// should not be the only one that knows which.
     private var discardExplanation: String {
         guard let record else { return "" }
-        return """
+        return String(localized: """
             Something replaced the link with a real folder — usually an app updating itself. \
             There are now two copies:
 
@@ -145,7 +145,7 @@ struct FolderDetailRow: View {
             \(record.sizeBytes.asStorage)
 
             Only the abandoned copy is removed. The folder this Mac is using is untouched.
-            """
+            """)
     }
 
     private var record: MoveRecord? { state.record(for: folder) }
@@ -172,9 +172,9 @@ struct FolderDetailRow: View {
     }
 
     private var status: String {
-        guard folder.isSymlink else { return "on startup disk" }
-        guard let record else { return "linked by hand" }
-        return state.health(record).explanation.lowercased()
+        guard folder.isSymlink else { return String(localized: "on startup disk") }
+        guard let record else { return String(localized: "linked by hand") }
+        return state.health(record).explanation
     }
 }
 
@@ -223,10 +223,12 @@ extension LinkHealth {
 
     var explanation: String {
         switch self {
-        case .healthy:       "Linked and reachable"
-        case .volumeMissing: "Drive disconnected"
-        case .brokenLink:    "Link is missing or points nowhere"
-        case .orphaned:      "Data on the drive, nothing links to it"
+        // Lowercase on purpose: shown mid-line. Written out rather than lowercased at the call
+        // site, which would wrongly lowercase German nouns.
+        case .healthy:       String(localized: "linked and reachable")
+        case .volumeMissing: String(localized: "drive disconnected")
+        case .brokenLink:    String(localized: "link is missing or points nowhere")
+        case .orphaned:      String(localized: "data on the drive, nothing links to it")
         }
     }
 }

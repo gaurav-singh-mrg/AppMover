@@ -57,18 +57,18 @@ public struct Volume: Equatable, Sendable, Identifiable {
     public func validateAsDestination(source: Volume?, requiredBytes: Int64) throws {
         guard supportsSymlinks else {
             throw EngineError.volumeUnsuitable(
-                reason: "\(name) does not support symbolic links. Reformat as APFS.")
+                reason: String(localized: "\(name) does not support symbolic links. Reformat as APFS."))
         }
         guard !isReadOnly else {
-            throw EngineError.volumeUnsuitable(reason: "\(name) is read-only.")
+            throw EngineError.volumeUnsuitable(reason: String(localized: "\(name) is read-only."))
         }
         if let source, source.isCaseSensitive != isCaseSensitive {
             throw EngineError.volumeUnsuitable(
-                reason: "\(name) differs from the startup disk in case sensitivity, which breaks apps subtly.")
+                reason: String(localized: "\(name) differs from the startup disk in case sensitivity, which breaks apps subtly."))
         }
         // Headroom so a copy cannot fill the destination completely.
         guard availableBytes > requiredBytes + 1_000_000_000 else {
-            throw EngineError.volumeUnsuitable(reason: "Not enough free space on \(name).")
+            throw EngineError.volumeUnsuitable(reason: String(localized: "Not enough free space on \(name)."))
         }
     }
 }

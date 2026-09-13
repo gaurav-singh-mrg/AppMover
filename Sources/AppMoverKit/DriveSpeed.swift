@@ -11,7 +11,7 @@ public struct DriveSpeed: Codable, Equatable, Sendable {
     public var isSlow: Bool { megabytesPerSecond < DriveSpeed.slowThreshold }
 
     public var summary: String {
-        String(format: "%.0f MB/s", megabytesPerSecond)
+        String(localized: "\(megabytesPerSecond.formatted(.number.precision(.fractionLength(0)))) MB/s")
     }
 
     /// Ranked by how often the data is read, not by how safe it is to lose.
@@ -22,9 +22,11 @@ public struct DriveSpeed: Codable, Equatable, Sendable {
     /// is how the app gets quietly abandoned -- nothing breaks, everything just feels worse,
     /// and nobody connects the two.
     public var warning: String {
-        "This drive writes at \(summary), well below your internal SSD. Best for archives and "
-        + "apps you rarely open. Avoid moving Caches here -- they are read constantly, so a "
-        + "slow drive makes every app that uses them feel sluggish."
+        String(localized: """
+            This drive writes at \(summary), well below your internal SSD. Best for archives and \
+            apps you rarely open. Avoid moving Caches here -- they are read constantly, so a \
+            slow drive makes every app that uses them feel sluggish.
+            """)
     }
 }
 
@@ -56,7 +58,7 @@ public struct DriveSpeedTester: Sendable {
         // Without F_FULLFSYNC this times the write cache, not the drive: a MicroSD would
         // measure as fast as RAM. fsync() alone is not enough on macOS.
         guard fcntl(handle.fileDescriptor, F_FULLFSYNC) != -1 else {
-            throw EngineError.volumeUnsuitable(reason: "Could not measure \(volume.name).")
+            throw EngineError.volumeUnsuitable(reason: String(localized: "Could not measure \(volume.name)."))
         }
         let elapsed = Date().timeIntervalSince(started)
 

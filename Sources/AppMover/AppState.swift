@@ -125,7 +125,7 @@ final class AppState {
     /// Application Support moved and its Caches not is a legitimate, recoverable state.
     func move(_ group: AppGroup) async {
         guard let volume = destination else {
-            errorMessage = "Choose a drive in Settings first."
+            errorMessage = String(localized: "Choose a drive in Settings first.")
             return
         }
         let root = settings.destinationFolder
@@ -133,7 +133,7 @@ final class AppState {
         var failures: [String] = []
         // Claimed before the first check, not at the first copy: the checks below await, and
         // until this is set every Move and Undo button in the window is still live.
-        busyMessage = "Checking \(group.displayName)…"
+        busyMessage = String(localized: "Checking \(group.displayName)…")
         moveProgress = nil
         // One stream for the row, not one per folder: the bar restarts at each folder
         // because each folder is a separate copy, but the plumbing is set up once.
@@ -153,8 +153,10 @@ final class AppState {
             // nothing about the copy still sitting on the drive or how to be rid of it.
             if let record = record(for: folder), health(record) == .orphaned {
                 failures.append(
-                    "\(folder.category.rawValue): an abandoned copy from an earlier move is "
-                    + "still on the drive. Open this row and choose Clean Up first.")
+                    String(localized: """
+                        \(folder.category.label): an abandoned copy from an earlier move is \
+                        still on the drive. Open this row and choose Clean Up first.
+                        """))
                 continue
             }
             // Re-checked per folder, not once for the row: a 40 GB copy takes minutes and
@@ -162,12 +164,14 @@ final class AppState {
             let running = await runningOwners(of: folder, in: group)
             guard running.isEmpty else {
                 failures.append(
-                    "\(folder.category.rawValue): quit \(running.formatted(.list(type: .and))) first. "
-                    + "Moving this folder while it is running would silently discard everything "
-                    + "it writes from now until it quits.")
+                    String(localized: """
+                        \(folder.category.label): quit \(running.formatted(.list(type: .and))) \
+                        first. Moving this folder while it is running would silently discard \
+                        everything it writes from now until it quits.
+                        """))
                 continue
             }
-            busyMessage = "Moving \(group.displayName) — \(folder.category.rawValue)…"
+            busyMessage = String(localized: "Moving \(group.displayName) — \(folder.category.label)…")
             do {
                 let record = try await run {
                     try Engine(allowlist: allowlist).move(
@@ -178,7 +182,7 @@ final class AppState {
                 ledger = ledger.adding(record)
                 try ledger.save()
             } catch {
-                failures.append("\(folder.category.rawValue): \(error.localizedDescription)")
+                failures.append("\(folder.category.label): \(error.localizedDescription)")
             }
         }
         if !failures.isEmpty { errorMessage = failures.joined(separator: "\n\n") }
@@ -216,7 +220,7 @@ final class AppState {
 
     /// Drops the abandoned external copy left when an updater replaced our symlink.
     func discardOrphan(_ record: MoveRecord) async {
-        busyMessage = "Removing the abandoned copy of \(record.displayName)…"
+        busyMessage = String(localized: "Removing the abandoned copy of \(record.displayName)…")
         defer { busyMessage = nil }
         do {
             try await run { try Engine().discardOrphan(record) }
@@ -229,7 +233,7 @@ final class AppState {
     }
 
     func undo(_ record: MoveRecord) async {
-        busyMessage = "Restoring \(record.displayName)…"
+        busyMessage = String(localized: "Restoring \(record.displayName)…")
         moveProgress = nil
         let (steps, report) = AsyncStream<MoveProgress>.makeStream()
         let watcher = Task { @MainActor [weak self] in

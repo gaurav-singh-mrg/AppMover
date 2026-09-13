@@ -25,7 +25,7 @@ struct SettingsView: View {
 
                     if let volume = state.destination {
                         LabeledContent("Layout") {
-                            Text("\(volume.name)/\(state.settings.destinationFolder)/Application Support/…")
+                            Text(verbatim: "\(volume.name)/\(state.settings.destinationFolder)/Application Support/…")
                                 .font(.caption.monospaced()).foregroundStyle(.secondary)
                         }
                     }

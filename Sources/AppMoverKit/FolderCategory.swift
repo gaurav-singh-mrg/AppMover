@@ -28,23 +28,30 @@ public enum FolderCategory: String, Codable, CaseIterable, Sendable, Identifiabl
     /// Destination folder name. Per-category layout, mirroring ~/Library.
     public var destinationFolder: String { rawValue }
 
+    /// What the UI shows. Never `rawValue`: that is the folder's real name on disk and the key
+    /// saved settings are stored under, so it must stay English whatever the language.
     public var label: String {
         switch self {
-        case .applicationSupport: "Application Support"
-        case .caches: "Caches"
-        case .developer: "Developer data"
-        case .applications: "Application bundles"
+        case .applicationSupport: String(localized: "Application Support")
+        case .caches: String(localized: "Caches")
+        case .developer: String(localized: "Developer data")
+        case .applications: String(localized: "Application bundles")
         }
     }
 
     public var explanation: String {
         switch self {
-        case .applicationSupport: "Saved state, profiles and databases. The usual place to reclaim space."
+        case .applicationSupport:
+            String(localized: "Saved state, profiles and databases. The usual place to reclaim space.")
         case .caches:
-            "Regenerable data, already excluded from Time Machine — the safest to move, but "
-            + "read constantly, so a slow drive will be felt."
-        case .developer: "Xcode simulators, archives and device support. Often the largest single win."
-        case .applications: "The apps themselves. Disconnecting the drive makes them disappear, not just fail."
+            String(localized: """
+                Regenerable data, already excluded from Time Machine — the safest to move, but \
+                read constantly, so a slow drive will be felt.
+                """)
+        case .developer:
+            String(localized: "Xcode simulators, archives and device support. Often the largest single win.")
+        case .applications:
+            String(localized: "The apps themselves. Disconnecting the drive makes them disappear, not just fail.")
         }
     }
 }

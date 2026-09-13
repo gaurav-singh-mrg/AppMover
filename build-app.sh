@@ -8,14 +8,42 @@ CONFIG="${1:-release}"
 APP="AppMover.app"
 BUNDLE_ID="com.gauravkumar.appmover"
 
-swift build -c "$CONFIG" --product AppMover
+# The compiler lists every localizable string it sees. Kept under .build, not a temp dir: an
+# incremental build only re-emits the files it recompiled, and syncing a partial list would
+# mark every other string stale.
+STRINGS=".build/strings-$CONFIG"
+mkdir -p "$STRINGS"
+swift build -c "$CONFIG" --product AppMover \
+    -Xswiftc -emit-localized-strings -Xswiftc -emit-localized-strings-path -Xswiftc "$STRINGS"
 BIN="$(swift build -c "$CONFIG" --product AppMover --show-bin-path)/AppMover"
+# What Xcode does on every build: new strings land in the catalog untranslated, and strings
+# no longer in the code are marked stale. Open Resources/Localizable.xcstrings in Xcode to
+# translate.
+xcrun xcstringstool sync Resources/Localizable.xcstrings --stringsdata "$STRINGS"/*.stringsdata
+# xcstringstool compiles a translation with the wrong placeholders without a word; the first
+# anyone hears of it is garbage, or a crash, in that one language. Fail the build instead.
+python3 - Resources/Localizable.xcstrings <<'PY'
+import json, re, sys
+def specs(s):
+    found = re.findall(r'%(?:(\d+)\$)?(l{0,2}[@diuxXofeEgG])', s.replace('%%', ''))
+    return sorted((int(n) if n else i + 1, kind) for i, (n, kind) in enumerate(found))
+bad = []
+for key, entry in json.load(open(sys.argv[1]))['strings'].items():
+    for lang, loc in entry.get('localizations', {}).items():
+        units = ([loc['stringUnit']] if 'stringUnit' in loc
+                 else [form['stringUnit'] for form in loc['variations']['plural'].values()])
+        bad += [f"{lang}: {u['value']!r}" for u in units if specs(u['value']) != specs(key)]
+sys.exit("Placeholders differ from the English key:\n" + "\n".join(bad) if bad else 0)
+PY
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/AppMover"
 # Before codesign: a resource added after signing invalidates the signature.
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# <lang>.lproj straight into the app bundle, where SwiftUI and String(localized:) look by
+# default -- not an SPM resource bundle, which neither would ever search.
+xcrun xcstringstool compile Resources/Localizable.xcstrings --output-directory "$APP/Contents/Resources"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -27,6 +55,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>AppMover</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleDisplayName</key><string>AppMover</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>
     <key>CFBundleVersion</key><string>1</string>

@@ -1,10 +1,19 @@
 import Foundation
 
-public enum MovePhase: String, Sendable {
-    case copying = "Copying"
-    case verifying = "Verifying"
-    case linking = "Linking"
-    case cleaningUp = "Cleaning up"
+public enum MovePhase: Sendable {
+    case copying
+    case verifying
+    case linking
+    case cleaningUp
+
+    public var label: String {
+        switch self {
+        case .copying:    String(localized: "Copying")
+        case .verifying:  String(localized: "Verifying")
+        case .linking:    String(localized: "Linking")
+        case .cleaningUp: String(localized: "Cleaning up")
+        }
+    }
 
     /// Where this phase sits on the bar. Copying owns nearly all of it because it owns
     /// nearly all of the time; the rest are one walk of the tree and two renames.

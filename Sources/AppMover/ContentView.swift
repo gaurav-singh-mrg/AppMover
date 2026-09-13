@@ -37,7 +37,7 @@ struct ContentView: View {
             isPresented: .constant(pendingMove != nil),
             presenting: pendingMove
         ) { group in
-            Button("Move \(group.movableFolders.count) folder\(group.movableFolders.count == 1 ? "" : "s")") {
+            Button("Move \(group.movableFolders.count) folders") {
                 let target = group
                 pendingMove = nil
                 Task { await state.move(target) }
@@ -72,19 +72,20 @@ struct ContentView: View {
     /// Names the folders being moved, not just the app, so the scope is never a surprise.
     private func confirmation(for group: AppGroup) -> String {
         let list = group.movableFolders
-            .map { "• \($0.category.rawValue) — \($0.bytes.asStorage)" }
+            .map { "• \($0.category.label) — \($0.bytes.asStorage)" }
             .joined(separator: "\n")
-        var text = """
-            Moving to \(state.destination?.name ?? "the drive"):
+        let drive = state.destination?.name ?? String(localized: "the drive")
+        var text = String(localized: """
+            Moving to \(drive):
 
             \(list)
 
             While the drive is disconnected \(group.displayName) cannot reach this data. \
             Time Machine does not follow links, so these folders will drop out of your \
             backups — keep a copy somewhere else if you cannot regenerate them.
-            """
+            """)
         if group.needsAdmin {
-            text += "\n\nSome of these are not owned by you and will need an administrator."
+            text += "\n\n" + String(localized: "Some of these are not owned by you and will need an administrator.")
         }
         return text
     }
@@ -100,7 +101,7 @@ struct DestinationBar: View {
                 .font(.title2).foregroundStyle(.tint)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(state.destination?.name ?? "No drive selected")
+                Text(state.destination?.name ?? String(localized: "No drive selected"))
                     .fontWeight(.medium)
                 if let volume = state.destination {
                     Text("\(volume.availableBytes.asStorage) free")
@@ -180,8 +181,8 @@ struct FilterBar: View {
     }
 
     private var countLabel: String {
-        guard state.isSearching else { return "\(shown) app\(shown == 1 ? "" : "s")" }
-        return "\(shown) of \(total)"
+        guard state.isSearching else { return String(localized: "\(shown) apps") }
+        return String(localized: "\(shown) of \(total)")
     }
 }
 
@@ -198,7 +199,7 @@ struct BusyBar: View {
                     .frame(width: 160)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(message).font(.callout)
-                    Text("\(progress.phase.rawValue) — \(Int(progress.fraction * 100))%")
+                    Text("\(progress.phase.label) — \(progress.fraction.formatted(.percent.precision(.fractionLength(0))))")
                         .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
             } else {
@@ -235,9 +236,11 @@ struct StrandedBackupNotice: View {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text("A previous move was interrupted").fontWeight(.medium)
-                Text("\(backups.count) recovered folder\(backups.count == 1 ? " is" : "s are") "
-                     + "waiting. Its app cannot see it until you rename it back, dropping "
-                     + "the \".appmover.bak\" or \".appmover.restore\" suffix.")
+                Text("""
+                    \(backups.count) recovered folders are waiting. Their apps cannot see them \
+                    until you rename them back, dropping the ".appmover.bak" or \
+                    ".appmover.restore" suffix.
+                    """)
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)

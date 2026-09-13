@@ -16,6 +16,17 @@ Finder. Settings chooses the drive, the folder on it, and which categories to sh
 can be searched and sorted by size, name, or location (moved first); the sort persists, the
 search does not. A move shows a real progress bar, driven by bytes copied.
 
+## Languages
+
+English, German, Spanish, French, Japanese and Simplified Chinese, from
+`Resources/Localizable.xcstrings`. `build-app.sh` syncs new strings from the code into the
+catalog (untranslated) and compiles it into the app. Translate or add a language by opening
+the catalog in Xcode. To try one without changing the system language:
+`AppMover.app/Contents/MacOS/AppMover -AppleLanguages '(ja)'`.
+
+Folder category names on disk (`Application Support`, `Caches`, …) stay English everywhere:
+they are real paths and the keys settings are saved under. The UI shows `FolderCategory.label`.
+
 ## Destination layout
 
 Per category, mirroring `~/Library`:

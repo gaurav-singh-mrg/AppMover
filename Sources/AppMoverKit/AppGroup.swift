@@ -42,7 +42,7 @@ public struct AppGroup: Identifiable, Equatable, Sendable {
     public var categorySummary: String {
         FolderCategory.allCases
             .filter { category in folders.contains { $0.category == category } }
-            .map(\.rawValue)
+            .map(\.label)
             .joined(separator: " · ")
     }
 
