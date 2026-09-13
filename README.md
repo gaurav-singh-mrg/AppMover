@@ -7,7 +7,10 @@ Two tabs: **On This Mac**, everything still on the startup disk, and **Moved**, 
 already on the drive with a button to put it back. One row per app, showing everything of its
 that is on disk — Application Support, Caches and Developer data together — expandable to the
 individual folders, each showing where its data currently lives with a button to reveal it in
-Finder. Settings chooses the drive, the folder on it, and which categories to show. The list
+Finder. Settings chooses the default drive, the folder on it, and which categories to show.
+With more than one drive connected, the arrow beside **Move** sends that app to any of them,
+so one app's data can live on one drive and another's elsewhere. The folder on each drive
+gets AppMover's icon unless it already has a custom one. The list
 can be searched and sorted by size, name, or location (moved first); the sort persists, the
 search does not. A move shows a real progress bar, driven by bytes copied.
 
@@ -39,7 +42,7 @@ from scratch.
 
 ### First launch
 
-1. Open **Settings** (the gear in the top bar) and pick the external drive, the folder on it
+1. Open **Settings** (the gear in the top bar) and pick the default drive, the folder on it
    (default `AppMover`), and which categories to show.
 2. If the window says **Can't read your Library**, click **Open Privacy Settings**, add
    `AppMover.app` under *Full Disk Access*, then quit and reopen the app.
@@ -148,6 +151,10 @@ Any failure restores the original and removes the partial copy. Verified on real
 - **Verification counts logical bytes, never `du`.** `du` reports allocated blocks, which
   drift ~1.8% across volumes with block size and APFS compression — enough to roll back a
   perfectly good copy.
+- **Each moved folder remembers its own drive.** The ledger stores a volume UUID per folder,
+  not one for the app, so undo and health checks follow every folder to whichever drive it
+  went to. The chosen drive is looked up again at move time, because the free space shown in
+  the menu dates from the last scan.
 - **Volumes are identified by UUID, not mount path.** `/Volumes/MicroSD` is not stable; if
   something else claims the name the drive mounts at `/Volumes/MicroSD 1` and every symlink
   points at nothing, or at someone else's data.

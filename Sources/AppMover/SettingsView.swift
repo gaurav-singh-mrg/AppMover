@@ -11,7 +11,7 @@ struct SettingsView: View {
 
             Form {
                 Section("Destination") {
-                    Picker("Drive", selection: destinationBinding) {
+                    Picker("Default drive", selection: destinationBinding) {
                         if state.candidateDestinations.isEmpty {
                             Text("No external drive connected").tag(String?.none)
                         }

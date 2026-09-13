@@ -5,7 +5,7 @@ import AppMoverKit
 struct AppRow: View {
     @Environment(AppState.self) private var state
     let group: AppGroup
-    let move: () -> Void
+    let move: (Volume?) -> Void
     @State private var isExpanded = false
 
     var body: some View {
@@ -53,8 +53,18 @@ struct AppRow: View {
             Button("Undo") { Task { await state.undoAll(group) } }
                 .disabled(!canUndo || state.isBusy)
         } else {
-            Button(group.isPartiallyMoved ? "Move rest" : "Move", action: move)
-                .disabled(state.isBusy)
+            // Clicking moves to the default drive from Settings; the arrow picks any other
+            // connected drive. With one drive there is nothing to pick, so it is a plain button.
+            Menu(group.isPartiallyMoved ? "Move rest" : "Move") {
+                ForEach(state.candidateDestinations) { volume in
+                    Button("\(volume.name) — \(volume.availableBytes.asStorage) free") { move(volume) }
+                }
+            } primaryAction: {
+                move(state.destination)
+            }
+            .menuIndicator(state.candidateDestinations.count > 1 ? .visible : .hidden)
+            .fixedSize()
+            .disabled(state.isBusy)
         }
     }
 

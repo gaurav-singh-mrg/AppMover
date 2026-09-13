@@ -134,9 +134,19 @@ final class AppState {
     ///
     /// No group transaction: each folder is recorded as it succeeds, so a row with its
     /// Application Support moved and its Caches not is a legitimate, recoverable state.
-    func move(_ group: AppGroup) async {
-        guard let volume = destination else {
+    ///
+    /// Any connected drive, not just the one in Settings: every record carries its own volume
+    /// UUID, so undo and health checks already follow each folder to whichever drive it is on.
+    func move(_ group: AppGroup, to chosen: Volume?) async {
+        guard let chosen else {
             errorMessage = String(localized: "Choose a drive in Settings first.")
+            return
+        }
+        // Re-resolved rather than trusted from the last scan: its free space is stale -- and
+        // that is exactly why the user picked this drive over another -- and it may have been
+        // unplugged since.
+        guard let volume = Volume.find(uuid: chosen.uuid) else {
+            errorMessage = String(localized: "\(chosen.name) is no longer connected.")
             return
         }
         let root = settings.destinationFolder
@@ -196,8 +206,23 @@ final class AppState {
                 failures.append("\(folder.category.label): \(error.localizedDescription)")
             }
         }
+        labelDriveFolder(volume.mountPoint.appending(path: root))
         if !failures.isEmpty { errorMessage = failures.joined(separator: "\n\n") }
         await refresh()
+    }
+
+    /// Gives the folder on the drive AppMover's icon, so it reads as the app's data rather
+    /// than a folder to tidy away. The root only: an `Icon\r` inside a category folder would
+    /// stop `Engine` removing it once empty.
+    ///
+    /// Skipped once any custom icon is there -- Finder writes the same `Icon\r` file -- so an
+    /// icon the user pasted in through Get Info survives.
+    private func labelDriveFolder(_ url: URL) {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path),
+              !fm.fileExists(atPath: url.path + "/Icon\r") else { return }
+        // ponytail: result ignored -- a plain folder icon is cosmetic, never worth an alert.
+        NSWorkspace.shared.setIcon(NSApp.applicationIconImage, forFile: url.path, options: [])
     }
 
     /// Apps that would lose data if this folder moved out from under them.

@@ -3,7 +3,7 @@ import AppMoverKit
 
 struct ContentView: View {
     @Environment(AppState.self) private var state
-    @State private var pendingMove: AppGroup?
+    @State private var pendingMove: (group: AppGroup, volume: Volume?)?
     @State private var showingSettings = false
     @State private var tab: ListTab = .onThisMac
 
@@ -38,18 +38,17 @@ struct ContentView: View {
         .task { await state.checkForUpdate() }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .confirmationDialog(
-            "Move \(pendingMove?.displayName ?? "")?",
+            "Move \(pendingMove?.group.displayName ?? "")?",
             isPresented: .constant(pendingMove != nil),
             presenting: pendingMove
-        ) { group in
-            Button("Move \(group.movableFolders.count) folders") {
-                let target = group
+        ) { pending in
+            Button("Move \(pending.group.movableFolders.count) folders") {
                 pendingMove = nil
-                Task { await state.move(target) }
+                Task { await state.move(pending.group, to: pending.volume) }
             }
             Button("Cancel", role: .cancel) { pendingMove = nil }
-        } message: { group in
-            Text(confirmation(for: group))
+        } message: { pending in
+            Text(confirmation(for: pending.group, to: pending.volume))
         }
         .alert("Couldn't finish", isPresented: .constant(state.errorMessage != nil)) {
             Button("OK") { state.errorMessage = nil }
@@ -69,17 +68,17 @@ struct ContentView: View {
     }
 
     private func tabContent(_ item: ListTab) -> some View {
-        GroupListView(tab: item, groups: state.groups(in: item)) { pendingMove = $0 }
+        GroupListView(tab: item, groups: state.groups(in: item)) { pendingMove = ($0, $1) }
             .tabItem { Text("\(item.title) (\(state.total(in: item)))") }
             .tag(item)
     }
 
     /// Names the folders being moved, not just the app, so the scope is never a surprise.
-    private func confirmation(for group: AppGroup) -> String {
+    private func confirmation(for group: AppGroup, to volume: Volume?) -> String {
         let list = group.movableFolders
             .map { "• \($0.category.label) — \($0.bytes.asStorage)" }
             .joined(separator: "\n")
-        let drive = state.destination?.name ?? String(localized: "the drive")
+        let drive = volume?.name ?? String(localized: "the drive")
         var text = String(localized: """
             Moving to \(drive):
 
