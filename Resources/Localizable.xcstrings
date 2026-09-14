@@ -995,6 +995,9 @@
         }
       }
     },
+    "Ask a question or report a bug on GitHub" : {
+
+    },
     "Caches" : {
       "localizations" : {
         "de" : {
@@ -3427,6 +3430,9 @@
           }
         }
       }
+    },
+    "Support" : {
+
     },
     "Symlink does not resolve: %@" : {
       "localizations" : {

@@ -104,6 +104,8 @@ struct DestinationBar: View {
     @Environment(AppState.self) private var state
     @Binding var showingSettings: Bool
 
+    private static let newIssuePage = URL(string: "https://github.com/gaurav-singh-mrg/AppMover/issues/new")!
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "externaldrive.connected.to.line.below")
@@ -132,6 +134,11 @@ struct DestinationBar: View {
                 Image(systemName: "arrow.clockwise")
             }
             .disabled(state.isScanning || state.isBusy)
+            Button("Support", systemImage: "lifepreserver") {
+                NSWorkspace.shared.open(Self.newIssuePage)
+            }
+            .labelStyle(.titleAndIcon)
+            .help("Ask a question or report a bug on GitHub")
             Button { showingSettings = true } label: {
                 Image(systemName: "gearshape")
             }
