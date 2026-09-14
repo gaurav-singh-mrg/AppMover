@@ -1,0 +1,16 @@
+<!-- Same primitives as Resources/make-icon.sh, with y flipped: AppKit draws from the bottom. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5c9eff"/>
+      <stop offset="1" stop-color="#1c4ad1"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#plate)"/>
+  <g fill="#fff">
+    <rect x="282" y="688" width="460" height="124" rx="42"/>
+    <polygon points="512,652 362,492 662,492"/>
+    <rect x="452" y="212" width="120" height="300" rx="46"/>
+  </g>
+  <circle cx="671" cy="749" r="19" fill="#2966e6"/>
+</svg>
