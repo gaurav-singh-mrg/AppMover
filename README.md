@@ -9,7 +9,9 @@ that is on disk — Application Support, Caches and Developer data together — 
 individual folders, each showing where its data currently lives with a button to reveal it in
 Finder. Settings chooses the default drive, the folder on it, and which categories to show.
 With more than one drive connected, the arrow beside **Move** sends that app to any of them,
-so one app's data can live on one drive and another's elsewhere. The folder on each drive
+and each folder in an expanded row has its own **Move**, so an app's Caches can go to one
+drive and its Application Support to another. Every connected drive is benchmarked once, and
+moving to a slow one says so in the confirmation. The folder on each drive
 gets AppMover's icon unless it already has a custom one. The list
 can be searched and sorted by size, name, or location (moved first); the sort persists, the
 search does not. A move shows a real progress bar, driven by bytes copied.

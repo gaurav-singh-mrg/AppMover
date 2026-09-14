@@ -5,13 +5,13 @@ import AppMoverKit
 struct AppRow: View {
     @Environment(AppState.self) private var state
     let group: AppGroup
-    let move: (Volume?) -> Void
+    let move: ([FolderSize], Volume?) -> Void
     @State private var isExpanded = false
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             ForEach(group.folders) { folder in
-                FolderDetailRow(folder: folder)
+                FolderDetailRow(folder: folder) { move([folder], $0) }
             }
         } label: {
             HStack(spacing: 10) {
@@ -53,18 +53,9 @@ struct AppRow: View {
             Button("Undo") { Task { await state.undoAll(group) } }
                 .disabled(!canUndo || state.isBusy)
         } else {
-            // Clicking moves to the default drive from Settings; the arrow picks any other
-            // connected drive. With one drive there is nothing to pick, so it is a plain button.
-            Menu(group.isPartiallyMoved ? "Move rest" : "Move") {
-                ForEach(state.candidateDestinations) { volume in
-                    Button("\(volume.name) — \(volume.availableBytes.asStorage) free") { move(volume) }
-                }
-            } primaryAction: {
-                move(state.destination)
+            MoveButton(title: group.isPartiallyMoved ? "Move rest" : "Move") {
+                move(group.movableFolders, $0)
             }
-            .menuIndicator(state.candidateDestinations.count > 1 ? .visible : .hidden)
-            .fixedSize()
-            .disabled(state.isBusy)
         }
     }
 
@@ -74,9 +65,33 @@ struct AppRow: View {
     }
 }
 
+/// Clicking moves to the default drive from Settings; the arrow picks any other connected
+/// drive. With one drive there is nothing to pick, so it looks and acts like a plain button.
+struct MoveButton: View {
+    @Environment(AppState.self) private var state
+    let title: LocalizedStringKey
+    let move: (Volume?) -> Void
+
+    var body: some View {
+        Menu(title) {
+            ForEach(state.candidateDestinations) { volume in
+                Button("\(volume.name) — \(volume.availableBytes.asStorage) free") { move(volume) }
+            }
+        } primaryAction: {
+            move(state.destination)
+        }
+        .menuIndicator(state.candidateDestinations.count > 1 ? .visible : .hidden)
+        .fixedSize()
+        .disabled(state.isBusy)
+    }
+}
+
 struct FolderDetailRow: View {
     @Environment(AppState.self) private var state
     let folder: FolderSize
+    /// One folder on its own, so an app's Caches and Application Support can go to different
+    /// drives.
+    let move: (Volume?) -> Void
     @State private var isConfirmingDiscard = false
 
     var body: some View {
@@ -125,6 +140,9 @@ struct FolderDetailRow: View {
                 Button("Undo") { Task { await state.undo(record) } }
                     .controlSize(.small)
                     .disabled(state.health(record) == .volumeMissing || state.isBusy)
+            } else if !folder.isSymlink {
+                // A symlink without a record was linked by hand: nothing to move, nothing to undo.
+                MoveButton(title: "Move", move: move).controlSize(.small)
             }
         }
         .padding(.leading, 26)

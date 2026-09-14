@@ -18,7 +18,7 @@ struct GroupListView: View {
     @Environment(AppState.self) private var state
     let tab: ListTab
     let groups: [AppGroup]
-    let move: (AppGroup, Volume?) -> Void
+    let move: (AppGroup, [FolderSize], Volume?) -> Void
 
     var body: some View {
         if groups.isEmpty {
@@ -35,7 +35,7 @@ struct GroupListView: View {
         } else {
             List {
                 ForEach(groups) { group in
-                    AppRow(group: group) { move(group, $0) }
+                    AppRow(group: group) { move(group, $0, $1) }
                 }
             }
             .listStyle(.inset)

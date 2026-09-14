@@ -3,7 +3,7 @@ import AppMoverKit
 
 struct ContentView: View {
     @Environment(AppState.self) private var state
-    @State private var pendingMove: (group: AppGroup, volume: Volume?)?
+    @State private var pendingMove: (group: AppGroup, folders: [FolderSize], volume: Volume?)?
     @State private var showingSettings = false
     @State private var tab: ListTab = .onThisMac
 
@@ -42,13 +42,13 @@ struct ContentView: View {
             isPresented: .constant(pendingMove != nil),
             presenting: pendingMove
         ) { pending in
-            Button("Move \(pending.group.movableFolders.count) folders") {
+            Button("Move \(pending.folders.count) folders") {
                 pendingMove = nil
-                Task { await state.move(pending.group, to: pending.volume) }
+                Task { await state.move(pending.folders, of: pending.group, to: pending.volume) }
             }
             Button("Cancel", role: .cancel) { pendingMove = nil }
         } message: { pending in
-            Text(confirmation(for: pending.group, to: pending.volume))
+            Text(confirmation(for: pending.group, folders: pending.folders, to: pending.volume))
         }
         .alert("Couldn't finish", isPresented: .constant(state.errorMessage != nil)) {
             Button("OK") { state.errorMessage = nil }
@@ -68,14 +68,14 @@ struct ContentView: View {
     }
 
     private func tabContent(_ item: ListTab) -> some View {
-        GroupListView(tab: item, groups: state.groups(in: item)) { pendingMove = ($0, $1) }
+        GroupListView(tab: item, groups: state.groups(in: item)) { pendingMove = ($0, $1, $2) }
             .tabItem { Text("\(item.title) (\(state.total(in: item)))") }
             .tag(item)
     }
 
     /// Names the folders being moved, not just the app, so the scope is never a surprise.
-    private func confirmation(for group: AppGroup, to volume: Volume?) -> String {
-        let list = group.movableFolders
+    private func confirmation(for group: AppGroup, folders: [FolderSize], to volume: Volume?) -> String {
+        let list = folders
             .map { "• \($0.category.label) — \($0.bytes.asStorage)" }
             .joined(separator: "\n")
         let drive = volume?.name ?? String(localized: "the drive")
@@ -88,7 +88,12 @@ struct ContentView: View {
             Time Machine does not follow links, so these folders will drop out of your \
             backups — keep a copy somewhere else if you cannot regenerate them.
             """)
-        if group.needsAdmin {
+        // Here, not only in the top bar: the bar shows the default drive, and this is the one
+        // moment the user is looking at the drive they actually picked.
+        if let volume, let speed = state.speeds.speed(forVolume: volume.uuid), speed.isSlow {
+            text += "\n\n" + speed.warning
+        }
+        if folders.contains(where: \.needsAdmin) {
             text += "\n\n" + String(localized: "Some of these are not owned by you and will need an administrator.")
         }
         return text

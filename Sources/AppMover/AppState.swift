@@ -94,7 +94,7 @@ final class AppState {
         groups = await Task.detached { AppGroup.group(sized, using: resolver) }.value
         isScanning = false
         readFailed = folders.isEmpty && ledger.links.isEmpty
-        await measureDestinationIfNeeded()
+        await measureDrivesIfNeeded()
     }
 
     func checkForUpdate() async {
@@ -106,14 +106,17 @@ final class AppState {
         availableUpdate = try? await UpdateCheck.newerVersion(than: current)
     }
 
-    /// Benchmarks a drive once and remembers it, rather than on every refresh.
-    func measureDestinationIfNeeded() async {
-        guard let volume = destination, speeds.speed(forVolume: volume.uuid) == nil else { return }
-        guard let speed = try? await Task.detached(priority: .utility, operation: {
-            try DriveSpeedTester().measure(volume)
-        }).value else { return }
-        speeds = speeds.recording(speed, forVolume: volume.uuid)
-        try? speeds.save()
+    /// Benchmarks each drive once and remembers it, rather than on every refresh. Every
+    /// connected drive, not just the default: Move can send an app to any of them, and the
+    /// slow-drive warning has to be ready before the user picks one.
+    func measureDrivesIfNeeded() async {
+        for volume in candidateDestinations where speeds.speed(forVolume: volume.uuid) == nil {
+            guard let speed = try? await Task.detached(priority: .utility, operation: {
+                try DriveSpeedTester().measure(volume)
+            }).value else { continue }
+            speeds = speeds.recording(speed, forVolume: volume.uuid)
+            try? speeds.save()
+        }
     }
 
     /// Sorting only reorders what is already loaded, so it persists without rescanning.
@@ -130,14 +133,14 @@ final class AppState {
 
     // MARK: - Actions
 
-    /// Moves every not-yet-moved folder in a row, one at a time.
+    /// Moves some of a row's folders -- all of them, or the one the user picked -- one at a time.
     ///
     /// No group transaction: each folder is recorded as it succeeds, so a row with its
     /// Application Support moved and its Caches not is a legitimate, recoverable state.
     ///
     /// Any connected drive, not just the one in Settings: every record carries its own volume
     /// UUID, so undo and health checks already follow each folder to whichever drive it is on.
-    func move(_ group: AppGroup, to chosen: Volume?) async {
+    func move(_ folders: [FolderSize], of group: AppGroup, to chosen: Volume?) async {
         guard let chosen else {
             errorMessage = String(localized: "Choose a drive in Settings first.")
             return
@@ -169,7 +172,7 @@ final class AppState {
             moveProgress = nil
         }
 
-        for folder in group.movableFolders {
+        for folder in folders {
             // An orphan would fail with "destination already exists", which tells the user
             // nothing about the copy still sitting on the drive or how to be rid of it.
             if let record = record(for: folder), health(record) == .orphaned {
@@ -268,8 +271,16 @@ final class AppState {
         }
     }
 
-    func undo(_ record: MoveRecord) async {
-        busyMessage = String(localized: "Restoring \(record.displayName)…")
+    func undo(_ record: MoveRecord) async { await undo([record]) }
+
+    func undoAll(_ group: AppGroup) async { await undo(group.folders.compactMap(record(for:))) }
+
+    /// Restores folders one at a time, the same shape as `move`: each is dropped from the
+    /// ledger as it succeeds, and failures are collected rather than each replacing the last.
+    /// A row split across two drives with one of them unplugged would otherwise report only
+    /// whichever folder failed last, hiding the rest.
+    private func undo(_ records: [MoveRecord]) async {
+        var failures: [String] = []
         moveProgress = nil
         let (steps, report) = AsyncStream<MoveProgress>.makeStream()
         let watcher = Task { @MainActor [weak self] in
@@ -281,21 +292,18 @@ final class AppState {
             busyMessage = nil
             moveProgress = nil
         }
-        do {
-            try await run { try Engine().undo(record, progress: { report.yield($0) }) }
-            ledger = ledger.removing(source: record.source)
-            try ledger.save()
-            await refresh()
-        } catch {
-            errorMessage = error.localizedDescription
+        for record in records {
+            busyMessage = String(localized: "Restoring \(record.displayName)…")
+            do {
+                try await run { try Engine().undo(record, progress: { report.yield($0) }) }
+                ledger = ledger.removing(source: record.source)
+                try ledger.save()
+            } catch {
+                failures.append("\(record.displayName): \(error.localizedDescription)")
+            }
         }
-    }
-
-    func undoAll(_ group: AppGroup) async {
-        for folder in group.folders {
-            guard let record = record(for: folder) else { continue }
-            await undo(record)
-        }
+        if !failures.isEmpty { errorMessage = failures.joined(separator: "\n\n") }
+        await refresh()
     }
 
     /// Keeps filesystem work off the main actor so the window stays responsive.
